@@ -1,0 +1,17 @@
+[package]
+name = "blocking-permit"
+version = "0.1.0"
+authors = ["David Kellum <dek-oss@gravitext.com>"]
+edition = "2018"
+license       = "MIT/Apache-2.0"
+description   = "tokio block intereface experiments"
+
+[dependencies]
+futures = { version=">=0.3.0-alpha.17, <0.4", package="futures-preview" }
+# pin-utils = { version=">=0.1.0-alpha.4, <0.2" }
+lazy_static = "1.3.0"
+tokio-sync = "0.2.0"
+
+[patch.crates-io]
+tokio-sync               = { path = "../tokio/tokio-sync" }
+#tokio-threadpool         = { path = "../tokio/tokio-threadpool" }
