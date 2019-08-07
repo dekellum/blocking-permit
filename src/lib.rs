@@ -27,42 +27,6 @@ Ready:
 
 */
 
-/*
-/// FIXME: This is probably overkill.
-enum PermitSystem {
-    /// A fixed blocking capacity configured on the executor.
-    Cap,
-    /// A single dedicated capacity for use of blocking reads from the
-    /// standard input stream.
-    Stdin,
-    /// A single dedicated capacity for use of blocking writes to the
-    /// standard output stream.
-    Stdout,
-    /// A single dedicated capacity for use of blocking writes to the
-    /// standard output stream.
-    Stderr,
-    /// Unbounded capacity. The use of this may lead to thread resource
-    /// exhaustion
-    Unlimited,
-};
-*/
-
-/* FIXME: See below instead;
-enum BlockingPermit {
-    /// The current thread is and must remain a reactor thread, where blocking
-    /// is disallowed. The current thread runtime is in use.
-    IsReactorThread,
-
-    /// Blocking capacity is not currently available. Your task will be woken
-    /// when capacity later becomes available.
-    Pending,
-
-    /// Blocking permit acquired. You may proceed with blocking operations
-    /// until this is dropped.
-    Acquired(Permit),
-}
-*/
-
 pub struct BlockingPermit {
     permit: Option<(Permit, &'static Semaphore)>,
 }
@@ -76,8 +40,6 @@ impl Drop for BlockingPermit {
         }
     }
 }
-
-// type returned = Poll<Result<BlockingPermit, NotPermitted>>;
 
 pub enum NotPermitted {
     /// The current thread is and must remain a reactor thread, where blocking
