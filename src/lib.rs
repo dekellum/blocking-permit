@@ -27,13 +27,15 @@ Ready:
 
 */
 
-pub struct BlockingPermit {
-    permit: Option<(Permit, &'static Semaphore)>,
+pub struct BlockingPermit<'a> {
+    permit: Option<(Permit, &'a Semaphore)>,
 }
 
-impl Drop for BlockingPermit {
+impl<'a> Drop for BlockingPermit<'a> {
     fn drop(&mut self) {
-        //DefaultExecutor::current().exit_blocking_section(&self);
+        eprintln!("Dropping BlockingPermit!");
+
+        // TODO: DefaultExecutor::current().exit_blocking_section(&self);
 
         if let Some((ref mut permit, ref semaphore)) = self.permit {
             permit.release(semaphore);
@@ -55,18 +57,34 @@ pub enum NotPermitted {
 /// Attempts to obtain a permit from the given Semaphore. If no permits are
 /// available, the current task context will be notified when a permit is
 /// available.
-pub fn blocking_permit(_semaphore: &'static Semaphore, _cx: &mut Context<'_>)
-    -> Poll<Result<BlockingPermit, NotPermitted>>
+pub fn blocking_permit<'a>(semaphore: &'a Semaphore, cx: &mut Context<'_>)
+    -> Poll<Result<BlockingPermit<'a>, NotPermitted>>
 {
-    unimplemented!()
+    let mut permit = Permit::new();
+    let ret = match permit.poll_acquire(cx, semaphore) {
+        Poll::Pending => Poll::Pending,
+        Poll::Ready(Ok(_)) => {
+            eprintln!("Creating BlockingPermit (live)");
+            Poll::Ready(Ok(BlockingPermit {
+                permit: Some((permit, semaphore))
+            }))
+        },
+        Poll::Ready(Err(e)) => Poll::Ready(Err(NotPermitted::OnAcquire(e))),
+    };
+
+    // TODO: DefaultExecutor::current().enter_blocking_section()
+    ret
 }
 
 /// Request a permit to perform a blocking operation on the current thread,
 /// unlimited by any maximum number of threads.  May still return
 /// `NotPermitted::IsReactorThread`.
-pub fn blocking_permit_unlimited() -> Result<BlockingPermit, NotPermitted>
+pub fn blocking_permit_unlimited<'a>() -> Result<BlockingPermit<'a>, NotPermitted>
 {
-    unimplemented!()
+    // TODO: DefaultExecutor::current().enter_blocking_section()
+    eprintln!("Creating BlockingPermit (dead)");
+
+    Ok(BlockingPermit { permit: None })
 }
 
 #[cfg(test)]
@@ -75,12 +93,14 @@ mod tests {
     use std::future::Future;
     use std::pin::Pin;
 
+    use futures::task::noop_waker;
+
     pub mod tokio_fs {
         use lazy_static::lazy_static;
         use tokio_sync::semaphore::Semaphore;
 
         lazy_static! {
-            pub static ref FILE_IO_SET: Semaphore = Semaphore::new(22);
+            pub static ref FILE_IO_SET: Semaphore = Semaphore::new(1);
         }
     }
 
@@ -115,6 +135,34 @@ mod tests {
     }
 
     #[test]
-    fn usage() {
+    fn unlimited() {
+        match blocking_permit_unlimited() {
+            Ok(_p) => {
+                eprintln!("do some blocking stuff");
+            },
+            Err(_e) => panic!("errored")
+        }
+    }
+
+    #[test]
+    fn limited() {
+        let semaphore = Semaphore::new(1);
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        let permit1 = blocking_permit(&semaphore, &mut cx);
+        match permit1 {
+            Poll::Pending => panic!("pending?"),
+            Poll::Ready(Ok(_)) => {
+                eprintln!("do first blocking stuff");
+            },
+            Poll::Ready(Err(_e)) => panic!("errored")
+        }
+        let permit2 = blocking_permit(&semaphore, &mut cx);
+        match permit2 {
+            Poll::Pending => eprintln!("permits exhausted"),
+            Poll::Ready(_) => panic!("permit2 ready?"),
+        }
+        drop(permit2);
+        drop(permit1);
     }
 }
