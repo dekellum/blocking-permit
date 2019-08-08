@@ -27,6 +27,8 @@ Ready:
 
 */
 
+/// A scoped permit for blocking operations. When dropped (out of scope or
+/// manually), the permit is released.
 pub struct BlockingPermit<'a> {
     permit: Option<(Permit, &'a Semaphore)>,
 }
@@ -35,7 +37,7 @@ impl<'a> Drop for BlockingPermit<'a> {
     fn drop(&mut self) {
         eprintln!("Dropping BlockingPermit!");
 
-        // TODO: DefaultExecutor::current().exit_blocking_section(&self);
+        // TODO: exit_blocking_section();
 
         if let Some((ref mut permit, ref semaphore)) = self.permit {
             permit.release(semaphore);
@@ -60,6 +62,8 @@ pub enum NotPermitted {
 pub fn blocking_permit<'a>(semaphore: &'a Semaphore, cx: &mut Context<'_>)
     -> Poll<Result<BlockingPermit<'a>, NotPermitted>>
 {
+    // TODO: Check if on current thread runtime?
+
     let mut permit = Permit::new();
     let ret = match permit.poll_acquire(cx, semaphore) {
         Poll::Pending => Poll::Pending,
@@ -72,7 +76,7 @@ pub fn blocking_permit<'a>(semaphore: &'a Semaphore, cx: &mut Context<'_>)
         Poll::Ready(Err(e)) => Poll::Ready(Err(NotPermitted::OnAcquire(e))),
     };
 
-    // TODO: DefaultExecutor::current().enter_blocking_section()
+    // TODO: enter_blocking_section()
     ret
 }
 
