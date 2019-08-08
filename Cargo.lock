@@ -6,7 +6,7 @@ version = "0.1.0"
 dependencies = [
  "futures-preview 0.3.0-alpha.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-sync 0.2.0 (git+https://github.com/tokio-rs/tokio)",
+ "tokio-sync 0.2.0-alpha.1 (git+https://github.com/tokio-rs/tokio)",
 ]
 
 [[package]]
@@ -114,8 +114,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "tokio-sync"
-version = "0.2.0"
-source = "git+https://github.com/tokio-rs/tokio#23c380a78f0c1f69b246d3657c51bd44e6bda78a"
+version = "0.2.0-alpha.1"
+source = "git+https://github.com/tokio-rs/tokio#50e5d401df9931eafabee554bb1a370958fc57d2"
 dependencies = [
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-core-preview 0.3.0-alpha.17 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -137,4 +137,4 @@ dependencies = [
 "checksum num_cpus 1.10.1 (registry+https://github.com/rust-lang/crates.io-index)" = "bcef43580c035376c0705c42792c294b66974abbfd2789b511784023f71f3273"
 "checksum pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)" = "5894c618ce612a3fa23881b152b608bafb8c56cfc22f434a3ba3120b40f7b587"
 "checksum slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
-"checksum tokio-sync 0.2.0 (git+https://github.com/tokio-rs/tokio)" = "<none>"
+"checksum tokio-sync 0.2.0-alpha.1 (git+https://github.com/tokio-rs/tokio)" = "<none>"
