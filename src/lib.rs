@@ -2,11 +2,11 @@
 // https://github.com/tokio-rs/tokio/issues/1177
 
 use std::task::{Context, Poll};
+use std::thread;
 
-use tokio_sync::{
-    semaphore,
-    semaphore::{Permit, Semaphore}
-};
+use futures::channel::oneshot;
+
+use tokio_sync::semaphore::{Permit, Semaphore};
 
 /*
 pub fn blocking<F, T>(f: F) -> Poll<Result<T, BlockingError>>
@@ -50,15 +50,16 @@ pub enum NotPermitted {
     /// is disallowed. The current thread runtime is in use.
     IsReactorThread,
 
-    /// Error acquiring a permit from the provided `Semaphore`, e.g. the
-    /// Semaphore has been closed.
-    OnAcquire(semaphore::AcquireError),
+    /// Dispatched task was canceled before it completed or awaited `Semaphore`
+    /// closed before being acquired.
+    Canceled,
 }
 
 /// Request a permit to perform a blocking operation on the current thread.
-/// Attempts to obtain a permit from the given Semaphore. If no permits are
-/// available, the current task context will be notified when a permit is
-/// available.
+/// Attempts to obtain a permit from the given Semaphore, and if returned,
+/// blocking operations are allowed while the `BlockingPermit` remains in
+/// scope. If no permits are available, the current task context will be
+/// notified when a permit becomes available.
 pub fn blocking_permit<'a>(semaphore: &'a Semaphore, cx: &mut Context<'_>)
     -> Poll<Result<BlockingPermit<'a>, NotPermitted>>
 {
@@ -73,10 +74,12 @@ pub fn blocking_permit<'a>(semaphore: &'a Semaphore, cx: &mut Context<'_>)
                 permit: Some((permit, semaphore))
             }))
         },
-        Poll::Ready(Err(e)) => Poll::Ready(Err(NotPermitted::OnAcquire(e))),
+        Poll::Ready(Err(_)) => Poll::Ready(Err(NotPermitted::Canceled)),
     };
 
-    // TODO: enter_blocking_section()
+    if let Poll::Ready(Ok(_)) = ret {
+        // TODO: enter_blocking_section()
+    }
     ret
 }
 
@@ -85,54 +88,100 @@ pub fn blocking_permit<'a>(semaphore: &'a Semaphore, cx: &mut Context<'_>)
 /// `NotPermitted::IsReactorThread`.
 pub fn blocking_permit_unlimited<'a>() -> Result<BlockingPermit<'a>, NotPermitted>
 {
-    // TODO: DefaultExecutor::current().enter_blocking_section()
+    // TODO: Check if on current thread runtime?
+
+    // TODO: enter_blocking_section()
+
     eprintln!("Creating BlockingPermit (dead)");
 
     Ok(BlockingPermit { permit: None })
 }
 
+/// Use oneshot channel, and its error type, for our prototype custom Future
+pub type DispatchBlocking<T> = futures::channel::oneshot::Receiver<T>;
+pub type Canceled = futures::channel::oneshot::Canceled;
+
+/// Dispatch a blocking operation in the closure to a non-reactor thread, and
+/// return a future representing its return value.
+pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
+    -> DispatchBlocking<T>
+    where T: Send + 'static
+{
+    let (tx, rx) = oneshot::channel();
+
+    thread::spawn(move || {
+        let r = f();
+        tx.send(r).ok();
+    });
+
+    rx
+}
+
+/*
+pub struct DispatchBlocking<T> {
+}
+
+impl<T> Future for DispatchBlocking<T> {
+    type Output = T;
+}
+*/
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::future::Future;
     use std::pin::Pin;
 
     use futures::task::noop_waker;
+
+    use super::*;
 
     pub mod tokio_fs {
         use lazy_static::lazy_static;
         use tokio_sync::semaphore::Semaphore;
 
         lazy_static! {
-            pub static ref FILE_IO_SET: Semaphore = Semaphore::new(1);
+            pub static ref BLOCKING_SET: Semaphore = Semaphore::new(1);
         }
     }
 
     #[allow(dead_code)]
-    struct TestFuture;
+    struct TestFuture {
+        dispatched: Option<DispatchBlocking<usize>>
+    }
+
+    impl TestFuture {
+        #[allow(dead_code)]
+        fn new() -> Self {
+            TestFuture { dispatched: None }
+        }
+    }
 
     impl Future for TestFuture {
-        type Output = Result<(), NotPermitted>;
+        type Output = Result<usize, Canceled>;
 
-        fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-            match blocking_permit(&tokio_fs::FILE_IO_SET, cx) {
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+            if let Some(ref mut blocking) = self.dispatched {
+                // FIXME: Unset self.dispatch on completion?
+                return Pin::new(&mut *blocking).poll(cx);
+            }
+            match blocking_permit(&tokio_fs::BLOCKING_SET, cx) {
                 Poll::Pending => return Poll::Pending,
                 Poll::Ready(Ok(_p)) => {
-                    // blocking operation(s), might panic
-                    return Poll::Ready(Ok(()));
+                    eprintln!("do some blocking stuff (41)");
+                    Poll::Ready(Ok(41))
                 }
                 Poll::Ready(Err(NotPermitted::IsReactorThread)) => {
-                    /*
                     self.dispatched = Some(
-                        DefaultExecutor::current().dispatch_blocking( Box::new(|| {
-                        // blocking operation(s)
+                        dispatch_blocking( Box::new(|| -> usize {
+                            eprintln!("do some blocking stuff (42)");
+                            42
                         }))
                     );
-                    */
-                    return Poll::Pending;
+                    // FIXME: Unset self.dispatch on (early)completion?
+                    Pin::new(self.dispatched.as_mut().unwrap()).poll(cx)
                 }
-                Poll::Ready(Err(e)) => {
-                    return Poll::Ready(Err(e))
+                Poll::Ready(Err(_)) => {
+                    Poll::Ready(Err(Canceled {}))
                 }
             }
         }
