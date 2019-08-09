@@ -72,10 +72,11 @@ impl<'a> Future for BlockingPermitFuture<'a> {
 
 impl<'a> BlockingPermit<'a> {
     /// Enter the blocking section of code on the current thread.  This is a
-    /// required secondary step from the [`BlockingPermitFuture`] and
-    /// [`blocking_permit`] call, because it _must_ be performed on the same
-    /// thread as the blocking section.  The blocking permit should then be
-    /// dropped at the end of the blocking section.
+    /// required secondary step from the [`BlockingPermitFuture`], and for
+    /// consistency the [`blocking_permit`] call, because it _must_ be
+    /// performed on the same thread, immediately before the blocking section.
+    /// The blocking permit should then be dropped at the end of the blocking
+    /// section.
     pub fn enter(&self) {
         if !self.entered.swap(true, Ordering::SeqCst) {
             // TODO: enter_blocking_section()
@@ -99,6 +100,7 @@ impl<'a> Drop for BlockingPermit<'a> {
             eprintln!("Dropped (entered) BlockingPermit");
         } else {
             eprintln!("Dropped (never entered) BlockingPermit!");
+            // TODO: Or make this a hard panic, at least in debug?
         }
     }
 }
@@ -223,7 +225,7 @@ mod tests {
 
     use super::*;
 
-    // TODO: Pretend for now that this is part of tokio-fs and also (somehow?)
+    // TODO: Pretend for now that this is part of tokio-fs and also somehow
     // configurable.
     pub mod tokio_fs {
         use lazy_static::lazy_static;
@@ -314,7 +316,7 @@ mod tests {
                 }
                 Delegate::Dispatch(ref mut db) => {
                     eprintln!("delegate poll to DispatchBlocking");
-                    Pin::new(&mut *db).poll(cx).map_err( |_| Canceled)
+                    Pin::new(&mut *db).poll(cx).map_err(|_| Canceled)
                 }
                 Delegate::Permit(ref mut pf) => {
                     eprintln!("delegate poll to BlockingPermitFuture");
@@ -353,7 +355,7 @@ mod tests {
                         .await
                 }
                 Ok(f) => {
-                    let permit = f.await?;
+                    let permit = f .await?;
                     permit.enter();
                     eprintln!("do some blocking stuff (permitted)");
                     Ok(42)
@@ -375,7 +377,7 @@ mod tests {
                         .await
                 }
                 Ok(f) => {
-                    let permit = f.await?;
+                    let permit = f .await?;
                     permit.enter();
                     Ok($b)
                 }
@@ -389,7 +391,7 @@ mod tests {
                         .await
                 }
                 Ok(f) => {
-                    let permit = f.await?;
+                    let permit = f .await?;
                     permit.enter();
                     Ok($b)
                 }
