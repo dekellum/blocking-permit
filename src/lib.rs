@@ -366,9 +366,9 @@ mod tests {
         assert!(val == 41 || val == 42);
     }
 
-    // TODO: Demonstrate a macro helper. Needs improvement (at least in testing
-    // and docs) if we are going to include this.
-    macro_rules! asyncy_winky {
+    // TODO: Demonstrate a macro helper. Needs improvement (at least in
+    // testing and docs) if we are going to include this.
+    macro_rules! permit_or_dispatch {
         ($c:expr, || $b:block) => {
             match blocking_permit_future($c) {
                 Err(IsReactorThread) => {
@@ -393,16 +393,16 @@ mod tests {
                 Ok(f) => {
                     let permit = f .await?;
                     permit.enter();
-                    Ok($b)
+                    Ok({$b})
                 }
             }
         };
     }
 
     #[test]
-    fn asyncy_winky_macro() {
+    fn the_macro() {
         let task = async {
-            asyncy_winky!(&tokio_fs::BLOCKING_SET, || {
+            permit_or_dispatch!(&tokio_fs::BLOCKING_SET, || {
                 eprintln!("do some blocking stuff, here or there");
                 41
             })
