@@ -363,4 +363,49 @@ mod tests {
         let val = block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
     }
+
+    // TODO: Demonstrate a macro helper. Needs improvement (at least in testing
+    // and docs) if we are going to include this.
+    macro_rules! asyncy_winky {
+        ($c:expr, || $b:block) => {
+            match blocking_permit_future($c) {
+                Err(IsReactorThread) => {
+                    dispatch_blocking(Box::new(|| {$b}))
+                        .map_err(|_| Canceled)
+                        .await
+                }
+                Ok(f) => {
+                    let permit = f.await?;
+                    permit.enter();
+                    Ok($b)
+                }
+            }
+        };
+        ($c:expr, || -> $a:ty $b:block) => {
+            match blocking_permit_future($c) {
+                Err(IsReactorThread) => {
+                    dispatch_blocking(Box::new(|| -> $a {$b}))
+                        .map_err(|_| Canceled)
+                        .await
+                }
+                Ok(f) => {
+                    let permit = f.await?;
+                    permit.enter();
+                    Ok($b)
+                }
+            }
+        };
+    }
+
+    #[test]
+    fn asyncy_winky_macro() {
+        let task = async {
+            asyncy_winky!(&tokio_fs::BLOCKING_SET, || {
+                eprintln!("do some blocking stuff, here or there");
+                41
+            })
+        };
+        let val = block_on(task).expect("task success");
+        assert_eq!(val, 41);
+    }
 }
