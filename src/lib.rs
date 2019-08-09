@@ -165,10 +165,10 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
 /// [`enter`](BlockingPermit::enter)ed to allow a blocking or "long running"
 /// operation to be performed on the current thread.
 ///
-/// This variant is unconstrained by any maximum allowed number of threads.
-/// To avoid and unbounded number of blocking threads being created, and
-/// possible resource exhaustion, use `blocking_permit_future` or
-/// `dispatch_blocking` instead.
+/// This variant is unconstrained by any maximum allowed number of threads. To
+/// avoid an unbounded number of blocking threads from being created, and
+/// possibility resource exhaustion, use `blocking_permit_future` (with a
+/// Semaphore) or `dispatch_blocking` instead.
 ///
 /// This returns an `IsReactorThread` error if the current thread can't become
 /// blocking, e.g. is a current thread runtime. This is recoverable by using
@@ -288,7 +288,7 @@ mod tests {
                     match blocking_permit_future(&tokio_fs::BLOCKING_SET) {
                         Err(IsReactorThread) => {
                             self.delegate = Delegate::Dispatch(
-                                dispatch_blocking( Box::new(|| -> usize {
+                                dispatch_blocking(Box::new(|| -> usize {
                                     eprintln!("do some blocking stuff (dispatched)");
                                     thread::sleep(Duration::from_millis(100));
                                     42
@@ -335,11 +335,11 @@ mod tests {
         let task = async {
             match blocking_permit_future(&tokio_fs::BLOCKING_SET) {
                 Err(IsReactorThread) => {
-                    dispatch_blocking( Box::new(|| -> usize {
+                    dispatch_blocking(Box::new(|| -> usize {
                         eprintln!("do some blocking stuff (dispatched)");
                         41
                     }))
-                        .map_err( |_| Canceled)
+                        .map_err(|_| Canceled)
                         .await
                 }
                 Ok(f) => {
