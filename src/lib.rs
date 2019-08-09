@@ -151,7 +151,7 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
     -> Result<BlockingPermitFuture<'_>, IsReactorThread>
 {
     // TODO: Really test if on the current thread runtime
-    if false {
+    #[cfg(feature="current_thread")] {
         return Err(IsReactorThread);
     }
 
@@ -176,7 +176,7 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
 pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
 {
     // TODO: Really test if on the current thread runtime
-    if false {
+    #[cfg(feature="current_thread")] {
         return Err(IsReactorThread);
     }
 
@@ -248,6 +248,16 @@ mod tests {
         // assert!(is_unwind_safe::<BlockingPermit<'_>>());
     }
 
+    #[cfg(feature="current_thread")]
+    #[test]
+    fn unlimited() {
+        match blocking_permit() {
+            Ok(_) => panic!("should have errored"),
+            Err(IsReactorThread) => {}
+        }
+    }
+
+    #[cfg(not(feature="current_thread"))]
     #[test]
     fn unlimited() {
         match blocking_permit() {
