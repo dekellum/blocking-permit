@@ -234,8 +234,8 @@ pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
 /// TODO: usage examples/ doc-tests
 ///
 /// ```rust no_compile no_run
-/// permit_or_dispatch(|| { /*.. blocking code..*/ });
-/// permit_or_dispatch(&semaphore, || { /*.. blocking code..*/ });
+/// permit_or_dispatch!(|| { /*.. blocking code..*/ });
+/// permit_or_dispatch!(&semaphore, || { /*.. blocking code..*/ });
 /// ```
 #[macro_export] macro_rules! permit_or_dispatch {
     (|| $b:block) => {
