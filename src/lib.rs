@@ -15,6 +15,9 @@ use tokio_sync::{
 
 /// A scoped permit for blocking operations. When dropped (out of scope or
 /// manually), the permit is released.
+///
+/// Note that [`enter`](BlockingPermit::enter) must be called before the actual
+/// blocking begins.
 #[must_use]
 pub struct BlockingPermit<'a> {
     permit: Option<(Permit, &'a Semaphore)>,
