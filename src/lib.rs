@@ -411,6 +411,29 @@ mod tests {
     }
 
     #[test]
+    fn async_block_await_unlimited() {
+        let task = async {
+            match blocking_permit() {
+                Ok(permit) => {
+                    permit.enter();
+                    eprintln!("do some blocking stuff (permitted)");
+                    Ok(42)
+                }
+                Err(IsReactorThread) => {
+                    dispatch_blocking(Box::new(|| -> usize {
+                        eprintln!("do some blocking stuff (dispatched)");
+                        41
+                    }))
+                        .map_err(|_| Canceled)
+                        .await
+                }
+            }
+        };
+        let val = block_on(task).expect("task success");
+        assert!(val == 41 || val == 42);
+    }
+
+    #[test]
     fn async_block_with_macro() {
         let task = async {
             permit_or_dispatch!(&tokio_fs::BLOCKING_SET, || {
