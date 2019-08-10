@@ -62,15 +62,21 @@ impl<'a> Future for BlockingPermitFuture<'a> {
                 }
             }
             Poll::Ready(Err(_)) => Poll::Ready(Err(Canceled)),
-            Poll::Pending => Poll::Pending,
+            Poll::Pending => {
+                // Note: The permit is dropped but interest remains. When woken
+                // we simple create a new permit to replace the former.
+                // TODO: Test to confirm this is okay strategy?
+                Poll::Pending
+            }
         }
     }
 }
 
 impl<'a> BlockingPermit<'a> {
-    /// Enter the blocking section of code on the current thread.  This is a
-    /// required secondary step from the [`BlockingPermitFuture`], and for
-    /// consistency the [`blocking_permit`] call, because it _must_ be
+    /// Enter the blocking section of code on the current thread.
+    ///
+    /// This is a required secondary step from the [`BlockingPermitFuture`],
+    /// and for consistency the [`blocking_permit`] call, because it _must_ be
     /// performed on the same thread, immediately before the blocking section.
     /// The blocking permit should then be dropped at the end of the blocking
     /// section.
