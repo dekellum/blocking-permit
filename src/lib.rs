@@ -220,13 +220,50 @@ pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
 }
 
 /// Helper macro for use in the context of an `async` block or function,
-/// repeating the same code block in thread if [`blocking_permit_future`]
-/// succeeds, or Box'ed in a call to [`dispatch_blocking`], if
-/// [`IsReactorThread`] is returned.
+/// repeating the same code block in thread if [`blocking_permit_future`] (or
+/// [`blocking_permit`]) succeeds, or Box'ed in a call to [`dispatch_blocking`],
+/// if [`IsReactorThread`] is returned.
 ///
 /// ## Usage
-/// TODO: usage examples
+///
+/// If the first argument is a `Semaphore` reference, uses
+/// [`blocking_permit_future`] with that `Semaphore`, otherwise uses
+/// [`blocking_permit`] (unlimited). Also the return type of the _closure_ may
+/// be optionally annotated.
+///
+/// TODO: usage examples/ doc-tests
+///
+/// ```rust no_compile no_run
+/// permit_or_dispatch(|| { /*.. blocking code..*/ });
+/// permit_or_dispatch(&semaphore, || { /*.. blocking code..*/ });
+/// ```
 #[macro_export] macro_rules! permit_or_dispatch {
+    (|| $b:block) => {
+        match blocking_permit() {
+            Err(IsReactorThread) => {
+                dispatch_blocking(Box::new(|| {$b}))
+                    .map_err(|_| Canceled)
+                    .await
+            }
+            Ok(permit) => {
+                permit.enter();
+                Ok($b)
+            }
+        }
+    };
+    (|| -> $a:ty $b:block) => {
+        match blocking_permit() {
+            Err(IsReactorThread) => {
+                dispatch_blocking(Box::new(|| -> $a {$b}))
+                    .map_err(|_| Canceled)
+                    .await
+            }
+            Ok(permit) => {
+                permit.enter();
+                Ok($b)
+            }
+        }
+    };
     ($c:expr, || $b:block) => {
         match blocking_permit_future($c) {
             Err(IsReactorThread) => {
@@ -437,6 +474,18 @@ mod tests {
     fn async_block_with_macro() {
         let task = async {
             permit_or_dispatch!(&tokio_fs::BLOCKING_SET, || {
+                eprintln!("do some blocking stuff, here or there");
+                41
+            })
+        };
+        let val = block_on(task).expect("task success");
+        assert_eq!(val, 41);
+    }
+
+    #[test]
+    fn async_block_with_macro_unlimited() {
+        let task = async {
+            permit_or_dispatch!(|| {
                 eprintln!("do some blocking stuff, here or there");
                 41
             })
