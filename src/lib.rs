@@ -213,6 +213,44 @@ pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
     rx
 }
 
+/// Helper macro for use in the context of an `async` block or function,
+/// repeating the same code block in thread if [`blocking_permit_future`]
+/// succeeds, or Box'ed in a call to [`dispatch_blocking`], if
+/// [`IsReactorThread`] is returned.
+///
+/// ## Usage
+/// TODO: usage examples
+#[macro_export] macro_rules! permit_or_dispatch {
+    ($c:expr, || $b:block) => {
+        match blocking_permit_future($c) {
+            Err(IsReactorThread) => {
+                dispatch_blocking(Box::new(|| {$b}))
+                    .map_err(|_| Canceled)
+                    .await
+            }
+            Ok(f) => {
+                let permit = f .await?;
+                permit.enter();
+                Ok($b)
+            }
+        }
+    };
+    ($c:expr, || -> $a:ty $b:block) => {
+        match blocking_permit_future($c) {
+            Err(IsReactorThread) => {
+                dispatch_blocking(Box::new(|| -> $a {$b}))
+                    .map_err(|_| Canceled)
+                    .await
+            }
+            Ok(f) => {
+                let permit = f .await?;
+                permit.enter();
+                Ok({$b})
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::Future;
@@ -366,41 +404,8 @@ mod tests {
         assert!(val == 41 || val == 42);
     }
 
-    // TODO: Demonstrate a macro helper. Needs improvement (at least in
-    // testing and docs) if we are going to include this.
-    macro_rules! permit_or_dispatch {
-        ($c:expr, || $b:block) => {
-            match blocking_permit_future($c) {
-                Err(IsReactorThread) => {
-                    dispatch_blocking(Box::new(|| {$b}))
-                        .map_err(|_| Canceled)
-                        .await
-                }
-                Ok(f) => {
-                    let permit = f .await?;
-                    permit.enter();
-                    Ok($b)
-                }
-            }
-        };
-        ($c:expr, || -> $a:ty $b:block) => {
-            match blocking_permit_future($c) {
-                Err(IsReactorThread) => {
-                    dispatch_blocking(Box::new(|| -> $a {$b}))
-                        .map_err(|_| Canceled)
-                        .await
-                }
-                Ok(f) => {
-                    let permit = f .await?;
-                    permit.enter();
-                    Ok({$b})
-                }
-            }
-        };
-    }
-
     #[test]
-    fn the_macro() {
+    fn async_block_with_macro() {
         let task = async {
             permit_or_dispatch!(&tokio_fs::BLOCKING_SET, || {
                 eprintln!("do some blocking stuff, here or there");
