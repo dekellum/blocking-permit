@@ -2,6 +2,11 @@
 
 Experiments tokio-sync and blocking ergonomics.
 
+See:
+
+* [tokio-rs/tokio/#1177](https://github.com/tokio-rs/tokio/issues/1177)
+* [tokio-rs/tokio/#588](https://github.com/tokio-rs/tokio/issues/588)
+
 ## License
 
 This project is dual licensed under either of following:

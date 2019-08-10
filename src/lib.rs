@@ -1,6 +1,3 @@
-// https://github.com/tokio-rs/tokio/issues/588
-// https://github.com/tokio-rs/tokio/issues/1177
-
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
