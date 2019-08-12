@@ -29,6 +29,7 @@ pub struct BlockingPermit<'a> {
 #[must_use]
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
+    permit: Option<Permit>,
     acquired: AtomicBool,
 }
 
@@ -43,7 +44,7 @@ impl<'a> Future for BlockingPermitFuture<'a> {
     type Output = Result<BlockingPermit<'a>, Canceled>;
 
     #[inline]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
         if self.acquired.load(Ordering::SeqCst) {
@@ -51,7 +52,7 @@ impl<'a> Future for BlockingPermitFuture<'a> {
             return Poll::Ready(Err(Canceled))
         }
 
-        let mut permit = Permit::new();
+        let mut permit = self.permit.take().unwrap_or_else(Permit::new);
         match permit.poll_acquire(cx, self.semaphore) {
             Poll::Ready(Ok(())) => {
                 if !self.acquired.swap(true, Ordering::SeqCst) {
@@ -66,9 +67,7 @@ impl<'a> Future for BlockingPermitFuture<'a> {
             }
             Poll::Ready(Err(_)) => Poll::Ready(Err(Canceled)),
             Poll::Pending => {
-                // Note: The permit is dropped but interest remains. When woken
-                // we simple create a new permit to replace the former.
-                // TODO: Test to confirm this is okay strategy?
+                self.permit = Some(permit);
                 Poll::Pending
             }
         }
@@ -166,6 +165,7 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
 
     Ok(BlockingPermitFuture {
         semaphore,
+        permit: None,
         acquired: AtomicBool::new(false)
     })
 }
