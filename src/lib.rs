@@ -306,7 +306,9 @@ mod tests {
     use std::time::Duration;
 
     use futures::executor::block_on;
-    use futures::future::TryFutureExt;
+    use futures::future::{FutureExt, TryFutureExt};
+    use lazy_static::lazy_static;
+    use tokio_threadpool as runtime;
 
     use super::*;
 
@@ -496,5 +498,26 @@ mod tests {
         };
         let val = block_on(task).expect("task success");
         assert_eq!(val, 41);
+    }
+
+    #[test]
+    fn test_threaded() {
+        lazy_static! {
+            pub static ref TEST_SET: Semaphore = Semaphore::new(3);
+        }
+
+        let rt = runtime::Builder::new().pool_size(7).build();
+        for _ in 0..1000 {
+            rt.spawn(async {
+                permit_or_dispatch!(|| {
+                    eprintln!("do some blocking stuff, here or there");
+                    41
+                })
+            }.map(|r| {
+                assert_eq!(41, r.expect("permit_or_dispatch future"));
+                ()
+            }));
+        }
+        rt.shutdown_on_idle().wait();
     }
 }

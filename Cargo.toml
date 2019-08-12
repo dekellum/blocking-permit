@@ -10,6 +10,7 @@ description   = "tokio blocking ergonomics prototype"
 futures = { version=">=0.3.0-alpha.17, <0.4", package="futures-preview" }
 lazy_static = "1.3.0"
 tokio-sync = { git = "https://github.com/tokio-rs/tokio" }
+tokio-threadpool = { git = "https://github.com/tokio-rs/tokio" }
 
 [features]
 current_thread=[] # testing hack
