@@ -18,7 +18,7 @@ use tokio_sync::{
 ///
 /// Note that [`enter`](BlockingPermit::enter) must be called before the actual
 /// blocking begins.
-#[must_use]
+#[must_use = "must call `enter` before blocking"]
 pub struct BlockingPermit<'a> {
     permit: Option<(Permit, &'a Semaphore)>,
     entered: Cell<bool>
@@ -26,14 +26,12 @@ pub struct BlockingPermit<'a> {
 
 /// A future which resolves to a [`BlockingPermit`], created via the
 /// [`blocking_permit_future`] function.
-#[must_use]
+#[must_use = "must be `.await`ed or polled"]
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
     permit: Option<Permit>,
     acquired: bool,
 }
-
-// TODO: Complete application of must_use attributes above or elsewhere
 
 // TODO: Remove or replace all eprintln calls with `log` below.
 
