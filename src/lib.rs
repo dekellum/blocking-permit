@@ -30,7 +30,7 @@ pub struct BlockingPermit<'a> {
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
     permit: Option<Permit>,
-    acquired: AtomicBool,
+    acquired: bool,
 }
 
 // TODO: Complete application of must_use attributes above or elsewhere
@@ -47,7 +47,7 @@ impl<'a> Future for BlockingPermitFuture<'a> {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
-        if self.acquired.load(Ordering::SeqCst) {
+        if self.acquired {
             // TODO: Or use a dedicated error for over `poll`ing?
             return Poll::Ready(Err(Canceled))
         }
@@ -55,15 +55,12 @@ impl<'a> Future for BlockingPermitFuture<'a> {
         let mut permit = self.permit.take().unwrap_or_else(Permit::new);
         match permit.poll_acquire(cx, self.semaphore) {
             Poll::Ready(Ok(())) => {
-                if !self.acquired.swap(true, Ordering::SeqCst) {
-                    eprintln!("Creating BlockingPermit (with permit)");
-                    Poll::Ready(Ok(BlockingPermit {
-                        permit: Some((permit, self.semaphore)),
-                        entered: AtomicBool::new(false)
-                    }))
-                } else {
-                    Poll::Ready(Err(Canceled))
-                }
+                eprintln!("Creating BlockingPermit (with permit)");
+                self.acquired = true;
+                Poll::Ready(Ok(BlockingPermit {
+                    permit: Some((permit, self.semaphore)),
+                    entered: AtomicBool::new(false)
+                }))
             }
             Poll::Ready(Err(_)) => Poll::Ready(Err(Canceled)),
             Poll::Pending => {
@@ -166,7 +163,7 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
     Ok(BlockingPermitFuture {
         semaphore,
         permit: None,
-        acquired: AtomicBool::new(false)
+        acquired: false,
     })
 }
 
