@@ -8,6 +8,8 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::thread;
 
+use log::{warn, debug};
+
 use tokio_sync::{
     oneshot,
     semaphore::{Permit, Semaphore},
@@ -33,8 +35,6 @@ pub struct BlockingPermitFuture<'a> {
     acquired: bool,
 }
 
-// TODO: Remove or replace all eprintln calls with `log` below.
-
 impl<'a> Future for BlockingPermitFuture<'a> {
     type Output = Result<BlockingPermit<'a>, Canceled>;
 
@@ -50,7 +50,7 @@ impl<'a> Future for BlockingPermitFuture<'a> {
         let mut permit = self.permit.take().unwrap_or_else(Permit::new);
         match permit.poll_acquire(cx, self.semaphore) {
             Poll::Ready(Ok(())) => {
-                eprintln!("Creating BlockingPermit (with permit)");
+                debug!("Creating BlockingPermit (with permit)");
                 self.acquired = true;
                 Poll::Ready(Ok(BlockingPermit {
                     permit: Some((permit, self.semaphore)),
@@ -90,14 +90,14 @@ impl<'a> Drop for BlockingPermit<'a> {
     fn drop(&mut self) {
         if self.entered.get() {
             // TODO: exit_blocking_section()
-            eprintln!("Dropped (entered) BlockingPermit");
+            debug!("Dropped (entered) BlockingPermit");
         } else {
-            eprintln!("Dropped (never entered) BlockingPermit!");
+            warn!("Dropped BlockingPermit was never `enter`ed");
             // TODO: Or make this a hard panic, at least in debug?
         }
 
         if let Some((ref mut permit, ref semaphore)) = self.permit {
-            eprintln!("Dropping BlockingPermit, releasing semaphore");
+            debug!("Dropping BlockingPermit, releasing semaphore");
             permit.release(semaphore);
         }
     }
@@ -181,7 +181,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
         return Err(IsReactorThread);
     }
 
-    eprintln!("Creating BlockingPermit (unlimited)");
+    debug!("Creating BlockingPermit (unlimited)");
 
     Ok(BlockingPermit {
         permit: None,
@@ -300,6 +300,7 @@ mod tests {
     use futures::executor::block_on;
     use futures::future::{FutureExt, TryFutureExt};
     use lazy_static::lazy_static;
+    use log::info;
     use tokio_threadpool as runtime;
 
     use super::*;
@@ -329,9 +330,14 @@ mod tests {
         // assert!(is_unwind_safe::<BlockingPermit<'_>>());
     }
 
+    fn log_init() {
+        env_logger::builder().is_test(true).try_init().ok();
+    }
+
     #[cfg(feature="current_thread")]
     #[test]
     fn unlimited() {
+        log_init();
         match blocking_permit() {
             Ok(_) => panic!("should have errored"),
             Err(IsReactorThread) => {}
@@ -341,10 +347,11 @@ mod tests {
     #[cfg(not(feature="current_thread"))]
     #[test]
     fn unlimited() {
+        log_init();
         match blocking_permit() {
             Ok(p) => {
                 p.enter();
-                eprintln!("do some blocking stuff");
+                info!("do some blocking stuff");
             },
             Err(_e) => panic!("errored")
         }
@@ -380,7 +387,7 @@ mod tests {
                         Err(IsReactorThread) => {
                             self.delegate = Delegate::Dispatch(
                                 dispatch_blocking(Box::new(|| -> usize {
-                                    eprintln!("do some blocking stuff (dispatched)");
+                                    info!("do some blocking stuff (dispatched)");
                                     thread::sleep(Duration::from_millis(100));
                                     42
                                 }))
@@ -394,16 +401,16 @@ mod tests {
                                   // (needed for correct waking)
                 }
                 Delegate::Dispatch(ref mut db) => {
-                    eprintln!("delegate poll to DispatchBlocking");
+                    info!("delegate poll to DispatchBlocking");
                     Pin::new(&mut *db).poll(cx).map_err(|_| Canceled)
                 }
                 Delegate::Permit(ref mut pf) => {
-                    eprintln!("delegate poll to BlockingPermitFuture");
+                    info!("delegate poll to BlockingPermitFuture");
                     match Pin::new(&mut *pf).poll(cx) {
                         Poll::Pending => Poll::Pending,
                         Poll::Ready(Ok(p)) => {
                             p.enter();
-                            eprintln!("do some blocking stuff (permitted)");
+                            info!("do some blocking stuff (permitted)");
                             Poll::Ready(Ok(41))
                         }
                         Poll::Ready(Err(_)) => Poll::Ready(Err(Canceled))
@@ -415,19 +422,21 @@ mod tests {
 
     #[test]
     fn future() {
+        log_init();
         let val = block_on(TestFuture::new()).expect("success");
         assert!(val == 41 || val == 42);
     }
 
     #[test]
     fn async_block_await() {
+        log_init();
         // Note how async/await makes this a lot nicer than the above
         // `TestFuture` manual way.
         let task = async {
             match blocking_permit_future(&tokio_fs::BLOCKING_SET) {
                 Err(IsReactorThread) => {
                     dispatch_blocking(Box::new(|| -> usize {
-                        eprintln!("do some blocking stuff (dispatched)");
+                        info!("do some blocking stuff (dispatched)");
                         41
                     }))
                         .map_err(|_| Canceled)
@@ -436,7 +445,7 @@ mod tests {
                 Ok(f) => {
                     let permit = f .await?;
                     permit.enter();
-                    eprintln!("do some blocking stuff (permitted)");
+                    info!("do some blocking stuff (permitted)");
                     Ok(42)
                 }
             }
@@ -447,16 +456,17 @@ mod tests {
 
     #[test]
     fn async_block_await_unlimited() {
+        log_init();
         let task = async {
             match blocking_permit() {
                 Ok(permit) => {
                     permit.enter();
-                    eprintln!("do some blocking stuff (permitted)");
+                    info!("do some blocking stuff (permitted)");
                     Ok(42)
                 }
                 Err(IsReactorThread) => {
                     dispatch_blocking(Box::new(|| -> usize {
-                        eprintln!("do some blocking stuff (dispatched)");
+                        info!("do some blocking stuff (dispatched)");
                         41
                     }))
                         .map_err(|_| Canceled)
@@ -470,9 +480,10 @@ mod tests {
 
     #[test]
     fn async_block_with_macro() {
+        log_init();
         let task = async {
             permit_or_dispatch!(&tokio_fs::BLOCKING_SET, || {
-                eprintln!("do some blocking stuff, here or there");
+                info!("do some blocking stuff, here or there");
                 41
             })
         };
@@ -482,9 +493,10 @@ mod tests {
 
     #[test]
     fn async_block_with_macro_unlimited() {
+        log_init();
         let task = async {
             permit_or_dispatch!(|| {
-                eprintln!("do some blocking stuff, here or there");
+                info!("do some blocking stuff, here or there");
                 41
             })
         };
@@ -494,6 +506,7 @@ mod tests {
 
     #[test]
     fn test_threaded() {
+        log_init();
         lazy_static! {
             pub static ref TEST_SET: Semaphore = Semaphore::new(3);
         }
@@ -502,7 +515,7 @@ mod tests {
         for _ in 0..1000 {
             rt.spawn(async {
                 permit_or_dispatch!(|| {
-                    eprintln!("do some blocking stuff, here or there");
+                    info!("do some blocking stuff, here or there");
                     41
                 })
             }.map(|r| {
