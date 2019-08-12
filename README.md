@@ -1,6 +1,6 @@
 # blocking-permit
 
-Experiments tokio-sync and blocking ergonomics.
+Experiments with tokio-sync and blocking ergonomics.
 
 See:
 
