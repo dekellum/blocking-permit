@@ -50,7 +50,7 @@ impl<'a> Future for BlockingPermitFuture<'a> {
         let mut permit = self.permit.take().unwrap_or_else(Permit::new);
         match permit.poll_acquire(cx, self.semaphore) {
             Poll::Ready(Ok(())) => {
-                debug!("Creating BlockingPermit (with permit)");
+                debug!("Creating BlockingPermit (semaphore)");
                 self.acquired = true;
                 Poll::Ready(Ok(BlockingPermit {
                     permit: Some((permit, self.semaphore)),
@@ -74,12 +74,15 @@ impl<'a> BlockingPermit<'a> {
     /// performed on the same thread, immediately before the blocking section.
     /// The blocking permit should then be dropped at the end of the blocking
     /// section.
+    ///
+    /// ## Panics
+    ///
+    /// If this `BlockingPermit` has already been entered.
     pub fn enter(&self) {
         if !self.entered.replace(true) {
             // TODO: enter_blocking_section()
         } else {
             panic!("BlockingPermit::enter called twice!");
-            // TODO: Or just make this a log warning?
         }
     }
 
@@ -88,17 +91,21 @@ impl<'a> BlockingPermit<'a> {
 
 impl<'a> Drop for BlockingPermit<'a> {
     fn drop(&mut self) {
-        if self.entered.get() {
+        let entered = self.entered.get();
+        if entered {
             // TODO: exit_blocking_section()
-            debug!("Dropped (entered) BlockingPermit");
-        } else {
-            warn!("Dropped BlockingPermit was never `enter`ed");
-            // TODO: Or make this a hard panic, at least in debug?
         }
-
         if let Some((ref mut permit, ref semaphore)) = self.permit {
-            debug!("Dropping BlockingPermit, releasing semaphore");
             permit.release(semaphore);
+            if entered {
+                debug!("Dropped BlockingPermit (semaphore)");
+            } else {
+                warn!("Dropped BlockingPermit (semaphore) was never entered")
+            }
+        } else if entered {
+            debug!("Dropped BlockingPermit (unlimited)");
+        } else {
+            warn!("Dropped BlockingPermit (unlimited) was never entered")
         }
     }
 }
