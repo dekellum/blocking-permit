@@ -97,16 +97,17 @@ impl<'a> BlockingPermit<'a> {
 
 impl<'a> Drop for BlockingPermit<'a> {
     fn drop(&mut self) {
-        if let Some((ref mut permit, ref semaphore)) = self.permit {
-            eprintln!("Dropping BlockingPermit, releasing semaphore");
-            permit.release(semaphore);
-        }
         if self.entered.load(Ordering::SeqCst) {
             // TODO: exit_blocking_section()
             eprintln!("Dropped (entered) BlockingPermit");
         } else {
             eprintln!("Dropped (never entered) BlockingPermit!");
             // TODO: Or make this a hard panic, at least in debug?
+        }
+
+        if let Some((ref mut permit, ref semaphore)) = self.permit {
+            eprintln!("Dropping BlockingPermit, releasing semaphore");
+            permit.release(semaphore);
         }
     }
 }
