@@ -212,6 +212,9 @@ pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
 {
     let (tx, rx) = oneshot::channel();
 
+    // TODO: Replace with associated executor's blocking backup thread
+    // pool. Presumably with concurrent runtime this should get queued on an
+    // existing blocking thread?
     thread::spawn(move || {
         let r = f();
         tx.send(r).ok();
