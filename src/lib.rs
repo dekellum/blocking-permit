@@ -1,10 +1,10 @@
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
+use std::cell::Cell;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 use std::thread;
 
@@ -21,7 +21,7 @@ use tokio_sync::{
 #[must_use]
 pub struct BlockingPermit<'a> {
     permit: Option<(Permit, &'a Semaphore)>,
-    entered: AtomicBool
+    entered: Cell<bool>
 }
 
 /// A future which resolves to a [`BlockingPermit`], created via the
@@ -34,9 +34,6 @@ pub struct BlockingPermitFuture<'a> {
 }
 
 // TODO: Complete application of must_use attributes above or elsewhere
-
-// TODO: Decide if the use of AtomicBool in the above (vs just bool) is really
-// warranted. If it is, consider relaxing from SeqCst.
 
 // TODO: Remove or replace all eprintln calls with `log` below.
 
@@ -59,7 +56,7 @@ impl<'a> Future for BlockingPermitFuture<'a> {
                 self.acquired = true;
                 Poll::Ready(Ok(BlockingPermit {
                     permit: Some((permit, self.semaphore)),
-                    entered: AtomicBool::new(false)
+                    entered: Cell::new(false)
                 }))
             }
             Poll::Ready(Err(_)) => Poll::Ready(Err(Canceled)),
@@ -80,7 +77,7 @@ impl<'a> BlockingPermit<'a> {
     /// The blocking permit should then be dropped at the end of the blocking
     /// section.
     pub fn enter(&self) {
-        if !self.entered.swap(true, Ordering::SeqCst) {
+        if !self.entered.replace(true) {
             // TODO: enter_blocking_section()
         } else {
             panic!("BlockingPermit::enter called twice!");
@@ -93,7 +90,7 @@ impl<'a> BlockingPermit<'a> {
 
 impl<'a> Drop for BlockingPermit<'a> {
     fn drop(&mut self) {
-        if self.entered.load(Ordering::SeqCst) {
+        if self.entered.get() {
             // TODO: exit_blocking_section()
             eprintln!("Dropped (entered) BlockingPermit");
         } else {
@@ -190,7 +187,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
 
     Ok(BlockingPermit {
         permit: None,
-        entered: AtomicBool::new(false)
+        entered: Cell::new(false)
     })
 }
 
