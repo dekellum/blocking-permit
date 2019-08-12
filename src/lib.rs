@@ -515,13 +515,13 @@ mod tests {
     fn test_threaded() {
         log_init();
         lazy_static! {
-            pub static ref TEST_SET: Semaphore = Semaphore::new(3);
+            static ref TEST_SET: Semaphore = Semaphore::new(3);
         }
 
         let rt = runtime::Builder::new().pool_size(7).build();
         for _ in 0..1000 {
             rt.spawn(async {
-                permit_or_dispatch!(|| {
+                permit_or_dispatch!(&TEST_SET, || {
                     info!("do some blocking stuff, here or there");
                     41
                 })
