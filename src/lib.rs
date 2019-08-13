@@ -38,7 +38,6 @@ pub struct BlockingPermitFuture<'a> {
 impl<'a> Future for BlockingPermitFuture<'a> {
     type Output = Result<BlockingPermit<'a>, Canceled>;
 
-    #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
