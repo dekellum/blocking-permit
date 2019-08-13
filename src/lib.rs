@@ -223,10 +223,9 @@ pub type DispatchBlocking<T> = oneshot::Receiver<T>;
         rx
     });
     (|| -> $a:ty $b:block) => ({
-        let (tx, rx) = oneshot::channel();
+        let (tx, rx) = oneshot::channel::<$a>();
         dispatch_blocking(Box::new(|| {
-            let res: $a = {$b};
-            tx.send(res).ok();
+            tx.send({$b}).ok();
         }));
         rx
     });
