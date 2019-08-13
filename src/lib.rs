@@ -195,36 +195,40 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
     })
 }
 
-// TODO: For now just using tokio_sync::oneshot channel, its error type, and
-// `Receiver` for our prototype custom `Future`. Should this be wrapped with a
-// new type?
-
-/// A future type created by [`dispatch_blocking`].
-pub type DispatchBlocking<T> = oneshot::Receiver<T>;
-
-/// Dispatch a blocking operation in the closure to a non-reactor thread, and
-/// return a future representing its return value.
-pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
-    -> DispatchBlocking<T>
-    where T: Send + 'static
+/// Dispatch a blocking operation in a closure to a non-reactor thread. Note
+/// that [`dispatch_rx`] may be used to obtain the return value.
+pub fn dispatch_blocking(f: Box<dyn FnOnce() + Send>)
 {
-    let (tx, rx) = oneshot::channel();
-
     // TODO: Replace with associated executor's blocking backup thread
     // pool. Presumably with concurrent runtime this should get queued on an
     // existing blocking thread?
-    thread::spawn(move || {
-        let r = f();
-        tx.send(r).ok();
-    });
+    thread::spawn(f);
+}
+
+/// A future type created by [`dispatch_rx`].
+// TODO: For now just using tokio_sync::oneshot channel, its error type, and
+// `Receiver` as a `Future`. Should this be wrapped with a new type?
+pub type DispatchBlocking<T> = oneshot::Receiver<T>;
+
+/// Dispatch a blocking operation in a closure via [`dispatch_blocking`], and
+/// return a future representing its return value. This returns the
+/// `DispatchBlocking<T>` type, where T is the return type of the closure.
+pub fn dispatch_rx<F, T>(f: F) -> DispatchBlocking<T>
+    where F: FnOnce() -> T + Send + 'static,
+          T: Send + 'static
+{
+    let (tx, rx) = oneshot::channel();
+    dispatch_blocking(Box::new(|| {
+        tx.send(f()).ok();
+    }));
 
     rx
 }
 
 /// Helper macro for use in the context of an `async` block or function,
 /// repeating the same code block in thread if [`blocking_permit_future`] (or
-/// [`blocking_permit`]) succeeds, or Box'ed in a call to [`dispatch_blocking`],
-/// if [`IsReactorThread`] is returned.
+/// [`blocking_permit`]) succeeds, or via [`dispatch_rx`], if
+/// [`IsReactorThread`] is returned.
 ///
 /// ## Usage
 ///
@@ -243,7 +247,7 @@ pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
     (|| $b:block) => {
         match blocking_permit() {
             Err(IsReactorThread) => {
-                dispatch_blocking(Box::new(|| {$b}))
+                dispatch_rx(|| {$b})
                     .map_err(|_| Canceled)
                     .await
             }
@@ -256,7 +260,7 @@ pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
     (|| -> $a:ty $b:block) => {
         match blocking_permit() {
             Err(IsReactorThread) => {
-                dispatch_blocking(Box::new(|| -> $a {$b}))
+                dispatch_rx(|| -> $a {$b})
                     .map_err(|_| Canceled)
                     .await
             }
@@ -269,7 +273,7 @@ pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
     ($c:expr, || $b:block) => {
         match blocking_permit_future($c) {
             Err(IsReactorThread) => {
-                dispatch_blocking(Box::new(|| {$b}))
+                dispatch_rx(|| {$b})
                     .map_err(|_| Canceled)
                     .await
             }
@@ -283,7 +287,7 @@ pub fn dispatch_blocking<T>(f: Box<dyn FnOnce() -> T + Send>)
     ($c:expr, || -> $a:ty $b:block) => {
         match blocking_permit_future($c) {
             Err(IsReactorThread) => {
-                dispatch_blocking(Box::new(|| -> $a {$b}))
+                dispatch_rx(|| -> $a {$b})
                     .map_err(|_| Canceled)
                     .await
             }
@@ -391,12 +395,13 @@ mod tests {
                 Delegate::None => {
                     match blocking_permit_future(&tokio_fs::BLOCKING_SET) {
                         Err(IsReactorThread) => {
+                            let s = "dispatched S".to_owned();
                             self.delegate = Delegate::Dispatch(
-                                dispatch_blocking(Box::new(|| -> usize {
-                                    info!("do some blocking stuff (dispatched)");
+                                dispatch_rx(move || -> usize {
+                                    info!("do some blocking stuff ({})", s);
                                     thread::sleep(Duration::from_millis(100));
                                     42
-                                }))
+                                })
                             );
                         },
                         Ok(f) => {
@@ -441,10 +446,12 @@ mod tests {
         let task = async {
             match blocking_permit_future(&tokio_fs::BLOCKING_SET) {
                 Err(IsReactorThread) => {
-                    dispatch_blocking(Box::new(|| -> usize {
+                    let mut _i = 0;
+                    dispatch_rx(move || -> usize {
                         info!("do some blocking stuff (dispatched)");
+                        _i = 1;
                         41
-                    }))
+                    })
                         .map_err(|_| Canceled)
                         .await
                 }
@@ -471,10 +478,10 @@ mod tests {
                     Ok(42)
                 }
                 Err(IsReactorThread) => {
-                    dispatch_blocking(Box::new(|| -> usize {
+                    dispatch_rx(|| -> usize {
                         info!("do some blocking stuff (dispatched)");
                         41
-                    }))
+                    })
                         .map_err(|_| Canceled)
                         .await
                 }
