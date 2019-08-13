@@ -428,7 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn future() {
+    fn manual_future() {
         log_init();
         let val = block_on(TestFuture::new()).expect("success");
         assert!(val == 41 || val == 42);
