@@ -191,8 +191,10 @@ impl std::error::Error for IsReactorThread {}
 pub fn blocking_permit_future(semaphore: &Semaphore)
     -> Result<BlockingPermitFuture<'_>, IsReactorThread>
 {
-    // TODO: Really test if on the current thread runtime
-    #[cfg(feature="current_thread")] {
+    // TODO: Change the check when available, or refine the error name and
+    // message. This makes `DispatchPool` drop-in applicable, but the error
+    // is potentially confusing.
+    if DispatchPool::is_thread_registered() {
         return Err(IsReactorThread);
     }
 
@@ -217,8 +219,10 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
 /// [`dispatch_blocking`] instead.
 pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
 {
-    // TODO: Really test if on the current thread runtime
-    #[cfg(feature="current_thread")] {
+    // TODO: Change the check when available, or refine the error name and
+    // message. This makes `DispatchPool` drop-in applicable, but the error
+    // is potentially confusing.
+    if DispatchPool::is_thread_registered() {
         return Err(IsReactorThread);
     }
 
@@ -355,6 +359,12 @@ mod tests {
         DispatchPool::register_thread_local(pool);
     }
 
+    fn maybe_register_dispatch_pool() {
+        #[cfg(feature="current_thread")] {
+            register_dispatch_pool();
+        }
+    }
+
     #[test]
     fn unlimited_current_thread() {
         log_init();
@@ -444,6 +454,7 @@ mod tests {
     #[test]
     fn manual_future() {
         log_init();
+        maybe_register_dispatch_pool();
         let val = block_on(TestFuture::new()).expect("success");
         assert!(val == 41 || val == 42);
     }
@@ -473,6 +484,7 @@ mod tests {
                 }
             }
         };
+        maybe_register_dispatch_pool();
         let val = block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
     }
@@ -497,6 +509,7 @@ mod tests {
                 }
             }
         };
+        maybe_register_dispatch_pool();
         let val = block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
     }
@@ -510,6 +523,7 @@ mod tests {
                 41
             })
         };
+        maybe_register_dispatch_pool();
         let val = block_on(task).expect("task success");
         assert_eq!(val, 41);
     }
@@ -523,6 +537,7 @@ mod tests {
                 41
             })
         };
+        maybe_register_dispatch_pool();
         let val = block_on(task).expect("task success");
         assert_eq!(val, 41);
     }
