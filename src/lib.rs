@@ -403,9 +403,9 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
     use std::time::Duration;
-
     use futures::executor as fu_exec;
     use futures::future::{FutureExt, TryFutureExt};
+    use futures::task::SpawnExt;
     use lazy_static::lazy_static;
     use log::info;
     use tokio_threadpool as runtime;
@@ -635,6 +635,34 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = fu_exec::block_on(task).expect("task success");
         assert_eq!(val, 41);
+        DispatchPool::deregister();
+    }
+
+    #[test]
+    fn test_fu_local_pool() {
+        log_init();
+        register_dispatch_pool();
+        lazy_static! {
+            static ref TEST_SET: Semaphore = Semaphore::new(1);
+        }
+        static FINISHED: AtomicUsize = AtomicUsize::new(0);
+
+        let mut pool = fu_exec::LocalPool::new();
+        let mut sp = pool.spawner();
+        for _ in 0..1000 {
+            sp.spawn(async {
+                permit_or_dispatch!(&TEST_SET, || {
+                    info!("do some blocking stuff, here or there");
+                    41
+                })
+            }.map(|r| {
+                assert_eq!(41, r.expect("permit_or_dispatch future"));
+                FINISHED.fetch_add(1, Ordering::SeqCst);
+                ()
+            })).unwrap();
+        }
+        pool.run();
+        assert_eq!(1000, FINISHED.load(Ordering::SeqCst));
         DispatchPool::deregister();
     }
 
