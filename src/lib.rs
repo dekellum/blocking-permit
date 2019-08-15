@@ -355,8 +355,12 @@ mod tests {
     }
 
     fn register_dispatch_pool() {
-        let pool = DispatchPool::builder().pool_size(2).create();
-        DispatchPool::register_thread_local(pool);
+        let pool = DispatchPool::builder()
+            .pool_size(2)
+            .after_start(|i| debug!("starting DispatchPool thread {}", i))
+            .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
+            .create();
+        DispatchPool::register_thread_local(&pool);
     }
 
     fn maybe_register_dispatch_pool() {
@@ -457,6 +461,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = block_on(TestFuture::new()).expect("success");
         assert!(val == 41 || val == 42);
+        DispatchPool::deregister();
     }
 
     #[test]
@@ -487,6 +492,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
+        DispatchPool::deregister();
     }
 
     #[test]
@@ -512,10 +518,11 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
+        DispatchPool::deregister();
     }
 
     #[test]
-    fn async_block_with_macro() {
+    fn async_block_with_macro_semaphore() {
         log_init();
         let task = async {
             permit_or_dispatch!(&tokio_fs::BLOCKING_SET, || {
@@ -526,6 +533,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = block_on(task).expect("task success");
         assert_eq!(val, 41);
+        DispatchPool::deregister();
     }
 
     #[test]
@@ -540,6 +548,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = block_on(task).expect("task success");
         assert_eq!(val, 41);
+        DispatchPool::deregister();
     }
 
     #[test]

@@ -10,8 +10,13 @@ use num_cpus;
 /// A specialized and simple thread pool for dispatch_blocking tasks. This is
 /// _not_ an executor and doesn't need any specialized waking or parking
 /// facilities. It uses an unbounded MPMC channel with the assumption that
-/// resource/capacity is externally constrained.
-pub struct DispatchPool {
+/// resource/capacity is externally constrained. Once constructed, threads are
+/// spawned and the instance acts as a handle to the pool. This may be
+/// unexpensively cloned for additonal handles to the same pool.
+#[derive(Clone)]
+pub struct DispatchPool(Arc<Sender>);
+
+struct Sender {
     tx: cbch::Sender<Work>,
     pool_size: usize,
 }
@@ -55,17 +60,22 @@ impl DispatchPool {
     /// This will panic if a zero size pool was configured. Attempts to spawn
     /// after the pool is shutdown are ignored.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
-        if self.pool_size == 0 {
+        if self.0.pool_size == 0 {
             panic!( "Invalid attempt to spawn on a zero sized DispatchPool" );
         }
-        self.tx.try_send(Work::Unit(f)).expect("transmit success");
+        self.0.tx.try_send(Work::Unit(f)).expect("transmit success");
         // TODO: Maybe log and otherwise ignore any errors?
     }
 
     /// Register a clone of self as a thread local pool instance. Any prior
     /// instance is returned.
-    pub fn register_thread_local(self) -> Option<DispatchPool> {
-        POOL.with(|p| p.replace(Some(self)))
+    pub fn register_thread_local(&self) -> Option<DispatchPool> {
+        POOL.with(|p| p.replace(Some(self.clone())))
+    }
+
+    /// Deregister and return any thread local pool instance.
+    pub fn deregister() -> Option<DispatchPool> {
+        POOL.with(|p| p.replace(None))
     }
 
     /// Return true if a DispatchPool is registered to the current thread.
@@ -118,7 +128,7 @@ impl Default for DispatchPool {
     }
 }
 
-impl Drop for DispatchPool {
+impl Drop for Sender {
     fn drop(&mut self) {
         for _ in 0..self.pool_size {
             if let Err(_) = self.tx.try_send(Work::Terminate) {
@@ -131,7 +141,7 @@ impl Drop for DispatchPool {
 impl fmt::Debug for DispatchPool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DispatchPool")
-            .field("threads", &self.pool_size)
+            .field("threads", &self.0.pool_size)
             .finish()
     }
 }
@@ -224,7 +234,7 @@ impl DispatchPoolBuilder {
                 POOL_CNT.fetch_add(1, Ordering::SeqCst))
         };
 
-        let pool = DispatchPool { tx, pool_size };
+        let pool = DispatchPool(Arc::new(Sender { tx, pool_size }));
 
         for i in 0..pool_size {
             let after_start = self.after_start.clone();
