@@ -6,14 +6,18 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::thread;
 
 use log::{warn, debug};
 
-use tokio_sync::{
-    oneshot,
-    semaphore::{Permit, Semaphore},
-};
+use tokio_sync::semaphore::{Permit, Semaphore};
+use tokio_threadpool;
+
+mod dispatch;
+mod dispatch_pool;
+
+pub use dispatch::{dispatch_blocking, dispatch_rx, DispatchBlocking};
+
+pub use dispatch_pool::{DispatchPool, DispatchPoolBuilder};
 
 /// A scoped permit for blocking operations. When dropped (out of scope or
 /// manually), the permit is released.
@@ -195,36 +199,6 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
     })
 }
 
-/// Dispatch a blocking operation in a closure to a non-reactor thread. Note
-/// that [`dispatch_rx`] may be used to obtain the return value.
-pub fn dispatch_blocking(f: Box<dyn FnOnce() + Send>)
-{
-    // TODO: Replace with associated executor's blocking backup thread
-    // pool. Presumably with concurrent runtime this should get queued on an
-    // existing blocking thread?
-    thread::spawn(f);
-}
-
-/// A future type created by [`dispatch_rx`].
-// TODO: For now just using tokio_sync::oneshot channel, its error type, and
-// `Receiver` as a `Future`. Should this be wrapped with a new type?
-pub type DispatchBlocking<T> = oneshot::Receiver<T>;
-
-/// Dispatch a blocking operation in a closure via [`dispatch_blocking`], and
-/// return a future representing its return value. This returns the
-/// `DispatchBlocking<T>` type, where T is the return type of the closure.
-pub fn dispatch_rx<F, T>(f: F) -> DispatchBlocking<T>
-    where F: FnOnce() -> T + Send + 'static,
-          T: Send + 'static
-{
-    let (tx, rx) = oneshot::channel();
-    dispatch_blocking(Box::new(|| {
-        tx.send(f()).ok();
-    }));
-
-    rx
-}
-
 /// Helper macro for use in the context of an `async` block or function,
 /// repeating the same code block in thread if [`blocking_permit_future`] (or
 /// [`blocking_permit`]) succeeds, or via [`dispatch_rx`], if
@@ -305,6 +279,7 @@ mod tests {
     use std::future::Future;
     use std::panic::UnwindSafe;
     use std::pin::Pin;
+    use std::thread;
     use std::time::Duration;
 
     use futures::executor::block_on;
@@ -344,19 +319,23 @@ mod tests {
         env_logger::builder().is_test(true).try_init().ok();
     }
 
-    #[cfg(feature="current_thread")]
+    fn register_dispatch_pool() {
+        let pool = DispatchPool::builder().pool_size(2).create();
+        DispatchPool::register_thread_local(pool);
+    }
+
     #[test]
-    fn unlimited() {
+    fn unlimited_current_thread() {
         log_init();
+        register_dispatch_pool();
         match blocking_permit() {
             Ok(_) => panic!("should have errored"),
             Err(IsReactorThread) => {}
         }
     }
 
-    #[cfg(not(feature="current_thread"))]
     #[test]
-    fn unlimited() {
+    fn unlimited_not_current_thread() {
         log_init();
         match blocking_permit() {
             Ok(p) => {
