@@ -309,15 +309,102 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
     };
 }
 
+/// Helper macro for use in the context of an `async` block or function,
+/// repeating the same code block in thread if [`blocking_permit_future`] (or
+/// [`blocking_permit`]) succeeds, or via [`dispatch_rx`], if
+/// [`IsReactorThread`] is returned. This variant is for the tokio concurrent
+/// runtime in its current state, where `BlockingPermit::run` must be used.
+#[macro_export] macro_rules! permit_run_or_dispatch {
+    (|| $b:block) => {
+        match blocking_permit() {
+            Err(IsReactorThread) => {
+                dispatch_rx(|| {$b})
+                    .map_err(|_| Canceled)
+                    .await
+            }
+            Ok(permit) => {
+                permit_run_unwrap!(permit, || {$b})
+            }
+        }
+    };
+    (|| -> $a:ty $b:block) => {
+        match blocking_permit() {
+            Err(IsReactorThread) => {
+                dispatch_rx(|| -> $a {$b})
+                    .map_err(|_| Canceled)
+                    .await
+            }
+            Ok(permit) => {
+                permit_run_unwrap!(permit, || -> $a {$b})
+            }
+        }
+    };
+    ($c:expr, || $b:block) => {
+        match blocking_permit_future($c) {
+            Err(IsReactorThread) => {
+                dispatch_rx(|| {$b})
+                    .map_err(|_| Canceled)
+                    .await
+            }
+            Ok(f) => {
+                let permit = f .await?;
+                permit_run_unwrap!(permit, || {$b})
+            }
+        }
+    };
+    ($c:expr, || -> $a:ty $b:block) => {
+        match blocking_permit_future($c) {
+            Err(IsReactorThread) => {
+                dispatch_rx(|| -> $a {$b})
+                    .map_err(|_| Canceled)
+                    .await
+            }
+            Ok(f) => {
+                let permit = f .await?;
+                permit_run_unwrap!(permit, || -> $a {$b})
+            }
+        }
+    };
+}
+
+// Helper for above
+#[doc(hidden)]
+#[macro_export]
+macro_rules! permit_run_unwrap {
+    ($p:expr, || $b:block) => ({
+        match $p.run(|| {$b}) {
+            Poll::Ready(Ok(v)) => Ok(v),
+            Poll::Ready(Err(e)) => {
+                panic!("should not fail with: {}", e)
+            }
+            Poll::Pending => {
+                panic!("set tokio_threadpool max_blocking higher!")
+            }
+        }
+    });
+    ($p:expr, || -> $a:ty $b:block) => ({
+        match $p.run(|| -> $a {$b}) {
+            Poll::Ready(Ok(v)) => Ok(v),
+            Poll::Ready(Err(e)) => {
+                panic!("should not fail with: {}", e)
+            }
+            Poll::Pending => {
+                panic!("set tokio_threadpool max_blocking higher!")
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::Future;
     use std::panic::UnwindSafe;
     use std::pin::Pin;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
     use std::time::Duration;
 
-    use futures::executor::block_on;
+    use futures::executor as fu_exec;
     use futures::future::{FutureExt, TryFutureExt};
     use lazy_static::lazy_static;
     use log::info;
@@ -459,13 +546,13 @@ mod tests {
     fn manual_future() {
         log_init();
         maybe_register_dispatch_pool();
-        let val = block_on(TestFuture::new()).expect("success");
+        let val = fu_exec::block_on(TestFuture::new()).expect("success");
         assert!(val == 41 || val == 42);
         DispatchPool::deregister();
     }
 
     #[test]
-    fn async_block_await() {
+    fn async_block_await_semaphore() {
         log_init();
         // Note how async/await makes this a lot nicer than the above
         // `TestFuture` manual way.
@@ -490,7 +577,7 @@ mod tests {
             }
         };
         maybe_register_dispatch_pool();
-        let val = block_on(task).expect("task success");
+        let val = fu_exec::block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
         DispatchPool::deregister();
     }
@@ -516,7 +603,7 @@ mod tests {
             }
         };
         maybe_register_dispatch_pool();
-        let val = block_on(task).expect("task success");
+        let val = fu_exec::block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
         DispatchPool::deregister();
     }
@@ -531,7 +618,7 @@ mod tests {
             })
         };
         maybe_register_dispatch_pool();
-        let val = block_on(task).expect("task success");
+        let val = fu_exec::block_on(task).expect("task success");
         assert_eq!(val, 41);
         DispatchPool::deregister();
     }
@@ -546,30 +633,37 @@ mod tests {
             })
         };
         maybe_register_dispatch_pool();
-        let val = block_on(task).expect("task success");
+        let val = fu_exec::block_on(task).expect("task success");
         assert_eq!(val, 41);
         DispatchPool::deregister();
     }
 
     #[test]
-    fn test_threaded() {
+    fn test_tokio_threadpool() {
         log_init();
         lazy_static! {
             static ref TEST_SET: Semaphore = Semaphore::new(3);
         }
+        static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
-        let rt = runtime::Builder::new().pool_size(7).build();
+        let rt = runtime::Builder::new()
+            .pool_size(7)
+            .max_blocking(32768-7)
+            .build();
+
         for _ in 0..1000 {
             rt.spawn(async {
-                permit_or_dispatch!(&TEST_SET, || {
+                permit_run_or_dispatch!(&TEST_SET, || {
                     info!("do some blocking stuff, here or there");
                     41
                 })
             }.map(|r| {
                 assert_eq!(41, r.expect("permit_or_dispatch future"));
+                FINISHED.fetch_add(1, Ordering::SeqCst);
                 ()
             }));
         }
         rt.shutdown_on_idle().wait();
+        assert_eq!(1000, FINISHED.load(Ordering::SeqCst));
     }
 }
