@@ -211,7 +211,7 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
 ///
 /// This variant is unconstrained by any maximum allowed number of threads. To
 /// avoid an unbounded number of blocking threads from being created, and
-/// possibility resource exhaustion, use `blocking_permit_future` (with a
+/// possible resource exhaustion, use `blocking_permit_future` (with a
 /// Semaphore) or `dispatch_blocking` instead.
 ///
 /// This returns an `IsReactorThread` error if the current thread can't become
