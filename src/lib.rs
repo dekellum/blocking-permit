@@ -76,14 +76,14 @@ impl<'a> BlockingPermit<'a> {
     /// return value.  A caller may wish to panic on or propigate as an error,
     /// any result other than `Ready(Ok(T))`, for example:
     ///
-    /// * For `Pending`, if the tokio `ThreadPool` is configured with
+    /// * For `Poll::Pending`, if the tokio `ThreadPool` is configured with
     ///   `max_blocking` set greater than the sum of all semaphore permits in
-    ///   use.  Setting `max_blocking` to `std::usize::max_value() >> 1` should
-    ///   do the trick.
+    ///   use.  Setting `max_blocking` to 32768 (builder claimed maximum) minus
+    ///   the pool size works currently.
     ///
-    /// * For `Ready(Ok(BlockError))`, if the current thread runtime is either
-    ///   not in use or only `dispatch_blocking`, and not `run` is used in that
-    ///   case.
+    /// * For `Poll::Ready(Err(BlockError))`, if the current thread runtime is
+    ///   either not in use or only `dispatch_blocking`, and not `run` is used
+    ///   in that case.
     ///
     /// __TODO__: Once tokio-threadpool is updated, this will be deprecated and
     /// emulated, then removed in favor of [`enter`](BlockingPermit::enter)
