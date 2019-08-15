@@ -131,7 +131,7 @@ impl Default for DispatchPool {
 impl Drop for Sender {
     fn drop(&mut self) {
         for _ in 0..self.pool_size {
-            if let Err(_) = self.tx.try_send(Work::Terminate) {
+            if self.tx.try_send(Work::Terminate).is_err() {
                 break;
             }
         }
