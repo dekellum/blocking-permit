@@ -70,6 +70,33 @@ impl<'a> Future for BlockingPermitFuture<'a> {
 }
 
 impl<'a> BlockingPermit<'a> {
+    /// Enter and run the blocking closure.
+    ///
+    /// This wraps the "legacy" `tokio_threadpool::blocking` call with the same
+    /// return value.  A caller may wish to panic on or propigate as an error,
+    /// any result other than `Ready(Ok(T))`, for example:
+    ///
+    /// * For `Pending`, if the tokio `ThreadPool` is configured with
+    ///   `max_blocking` set greater than the sum of all semaphore permits in
+    ///   use.  Setting `max_blocking` to `std::usize::max_value() >> 1` should
+    ///   do the trick.
+    ///
+    /// * For `Ready(Ok(BlockError))`, if the current thread runtime is either
+    ///   not in use or only `dispatch_blocking`, and not `run` is used in that
+    ///   case.
+    ///
+    /// __TODO__: Once tokio-threadpool is updated, this will be deprecated and
+    /// emulated, then removed in favor of [`enter`](BlockingPermit::enter)
+    pub fn run<F, T>(&self, f: F)
+        -> Poll<Result<T, tokio_threadpool::BlockingError>>
+        where F: FnOnce() -> T
+    {
+        if self.entered.replace(true) {
+            panic!("BlockingPermit::run (or enter) called twice!");
+        }
+        tokio_threadpool::blocking(f)
+    }
+
     /// Enter the blocking section of code on the current thread.
     ///
     /// This is a required secondary step from the [`BlockingPermitFuture`],
@@ -78,6 +105,10 @@ impl<'a> BlockingPermit<'a> {
     /// The blocking permit should then be dropped at the end of the blocking
     /// section.
     ///
+    /// TODO: this currently awaits access to a
+    /// `tokio_threadpool::enter_blocking_section` function or similar, until
+    /// then use the blocking method which takes a clojure.
+    ///
     /// ## Panics
     ///
     /// If this `BlockingPermit` has already been entered.
@@ -85,7 +116,7 @@ impl<'a> BlockingPermit<'a> {
         if !self.entered.replace(true) {
             // TODO: enter_blocking_section()
         } else {
-            panic!("BlockingPermit::enter called twice!");
+            panic!("BlockingPermit::enter (or run) called twice!");
         }
     }
 
