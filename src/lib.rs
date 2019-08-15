@@ -262,7 +262,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
             }
             Ok(permit) => {
                 permit.enter();
-                Ok($b)
+                Ok({$b})
             }
         }
     };
@@ -275,7 +275,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
             }
             Ok(permit) => {
                 permit.enter();
-                Ok($b)
+                Ok({$b})
             }
         }
     };
@@ -289,7 +289,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
             Ok(f) => {
                 let permit = f .await?;
                 permit.enter();
-                Ok($b)
+                Ok({$b})
             }
         }
     };
