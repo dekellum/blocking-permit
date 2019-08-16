@@ -70,23 +70,58 @@ impl<'a> Future for BlockingPermitFuture<'a> {
 }
 
 impl<'a> BlockingPermit<'a> {
+    /// Enter the blocking section of code on the current thread.
+    ///
+    /// This is a required secondary step from the [`BlockingPermitFuture`],
+    /// and for consistency the [`blocking_permit`] call, because it _must_ be
+    /// performed on the same thread, immediately before the blocking section.
+    /// The blocking permit should then be dropped at the end of the blocking
+    /// section.
+    ///
+    /// ## TODO
+    ///
+    /// This currently awaits access to a
+    /// `tokio_threadpool::enter_blocking_section` function or similar, until
+    /// then use the `run` or `run_unwrap` methods which takes a closure.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if this `BlockingPermit` has already been entered.
+    pub fn enter(&self) {
+        if !self.entered.replace(true) {
+            // TODO: enter_blocking_section()
+        } else {
+            panic!("BlockingPermit::enter (or run) called twice!");
+        }
+    }
+
+    // TODO: provide manual (ahead of drop) exit(), if also desired?
+
     /// Enter and run the blocking closure.
     ///
     /// This wraps the "legacy" `tokio_threadpool::blocking` call with the same
-    /// return value.  A caller may wish to panic on or propigate as an error,
+    /// return value.  A caller may wish to panic (see
+    /// [`run_unwrap`](BlockingPermit::run_unwrap) or propigate as an error,
     /// any result other than `Ready(Ok(T))`, for example:
     ///
-    /// * For `Poll::Pending`, if the tokio `ThreadPool` is configured with
-    ///   `max_blocking` set greater than the sum of all semaphore permits in
-    ///   use.  Setting `max_blocking` to 32768 (builder claimed maximum) minus
-    ///   the pool size works currently.
+    /// * `Poll::Pending` can be avoided if the tokio `ThreadPool` is
+    ///    configured with `max_blocking` set greater than the sum of all
+    ///    semaphore permits in use.  Setting `max_blocking` to 32768 minus the
+    ///    pool size works currently.
     ///
-    /// * For `Poll::Ready(Err(BlockError))`, if the current thread runtime is
-    ///   either not in use or only `dispatch_blocking`, and not `run` is used
-    ///   in that case.
+    /// * `Poll::Ready(Err(BlockError))` occurs if the current thread is not a
+    ///   Tokio concurrent `ThreadPool` worker. Don't do that! Use
+    ///   `dispatch_blocking` instead.
     ///
-    /// __TODO__: Once tokio-threadpool is updated, this will be deprecated and
-    /// emulated, then removed in favor of [`enter`](BlockingPermit::enter)
+    /// ## TODO
+    ///
+    /// Once tokio-threadpool is updated, this will be deprecated and emulated,
+    /// then removed in favor of [`enter`](BlockingPermit::enter).
+    ///
+    /// ## Panics
+    ///
+    /// Panics if this `BlockingPermit` has already been entered (via `enter`
+    /// or `run`*).
     pub fn run<F, T>(&self, f: F)
         -> Poll<Result<T, tokio_threadpool::BlockingError>>
         where F: FnOnce() -> T
@@ -97,30 +132,38 @@ impl<'a> BlockingPermit<'a> {
         tokio_threadpool::blocking(f)
     }
 
-    /// Enter the blocking section of code on the current thread.
+    /// Enter and run the blocking closure, with confidence.
     ///
-    /// This is a required secondary step from the [`BlockingPermitFuture`],
-    /// and for consistency the [`blocking_permit`] call, because it _must_ be
-    /// performed on the same thread, immediately before the blocking section.
-    /// The blocking permit should then be dropped at the end of the blocking
-    /// section.
+    /// This wraps the "legacy" `tokio_threadpool::blocking`, unwraps and
+    /// returns the value `v` of `Poll::Ready(Ok(v))`, type T, or panics on
+    /// other returns.
     ///
-    /// TODO: this currently awaits access to a
-    /// `tokio_threadpool::enter_blocking_section` function or similar, until
-    /// then use the blocking method which takes a clojure.
+    /// ## TODO
+    ///
+    /// Once tokio-threadpool is updated, this will be deprecated and
+    /// emulated, then removed in favor of [`enter`](BlockingPermit::enter).
     ///
     /// ## Panics
     ///
-    /// If this `BlockingPermit` has already been entered.
-    pub fn enter(&self) {
-        if !self.entered.replace(true) {
-            // TODO: enter_blocking_section()
-        } else {
-            panic!("BlockingPermit::enter (or run) called twice!");
+    /// Panics on non-success returns. See [`run`](BlockingPermit::run) for
+    /// ways to avoid these panics.
+    ///
+    /// Panics if this `BlockingPermit` has already been entered (via `enter`
+    /// or `run`*).
+     pub fn run_unwrap<F, T>(&self, f: F) -> T
+        where F: FnOnce() -> T
+    {
+        match self.run(f) {
+            Poll::Ready(Ok(v)) => v,
+            Poll::Ready(Err(e)) => {
+                panic!("misused: {}", e)
+            }
+            Poll::Pending => {
+                panic!("set tokio_threadpool max_blocking higher,\
+                        or semaphore permits lower!")
+            }
         }
     }
-
-    // TODO: provide manual (ahead of drop) exit(), if also desired?
 }
 
 impl<'a> Drop for BlockingPermit<'a> {
@@ -321,7 +364,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
 /// [`IsReactorThread`] is returned.
 ///
 /// This variant is for the tokio concurrent runtime (`ThreadPool`) in its
-/// current state, where [`BlockingPermit::run`] must be used, and will
+/// current state, where [`BlockingPermit::run_unwrap`] must be used, and will
 /// eventually be deprecated.
 #[macro_export] macro_rules! permit_run_or_dispatch {
     (|| $b:block) => {
@@ -332,7 +375,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
                     .await
             }
             Ok(permit) => {
-                permit_run_unwrap!(permit, || {$b})
+                Ok(permit.run_unwrap(|| {$b}))
             }
         }
     };
@@ -344,7 +387,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
                     .await
             }
             Ok(permit) => {
-                permit_run_unwrap!(permit, || -> $a {$b})
+                Ok(permit.run_unwrap(|| -> $a {$b}))
             }
         }
     };
@@ -357,7 +400,7 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
             }
             Ok(f) => {
                 let permit = f .await?;
-                permit_run_unwrap!(permit, || {$b})
+                Ok(permit.run_unwrap(|| {$b}))
             }
         }
     };
@@ -370,38 +413,10 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
             }
             Ok(f) => {
                 let permit = f .await?;
-                permit_run_unwrap!(permit, || -> $a {$b})
+                Ok(permit.run_unwrap(|| -> $a {$b}))
             }
         }
     };
-}
-
-// Helper for above
-#[doc(hidden)]
-#[macro_export]
-macro_rules! permit_run_unwrap {
-    ($p:expr, || $b:block) => ({
-        match $p.run(|| {$b}) {
-            Poll::Ready(Ok(v)) => Ok(v),
-            Poll::Ready(Err(e)) => {
-                panic!("should not fail with: {}", e)
-            }
-            Poll::Pending => {
-                panic!("set tokio_threadpool max_blocking higher!")
-            }
-        }
-    });
-    ($p:expr, || -> $a:ty $b:block) => ({
-        match $p.run(|| -> $a {$b}) {
-            Poll::Ready(Ok(v)) => Ok(v),
-            Poll::Ready(Err(e)) => {
-                panic!("should not fail with: {}", e)
-            }
-            Poll::Pending => {
-                panic!("set tokio_threadpool max_blocking higher!")
-            }
-        }
-    });
 }
 
 #[cfg(test)]
