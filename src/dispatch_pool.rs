@@ -7,12 +7,13 @@ use std::thread;
 use crossbeam_channel as cbch;
 use num_cpus;
 
-/// A specialized and simple thread pool for dispatch_blocking tasks. This is
-/// _not_ an executor and doesn't need any specialized waking or parking
-/// facilities. It uses an unbounded MPMC channel with the assumption that
-/// resource/capacity is externally constrained. Once constructed, threads are
-/// spawned and the instance acts as a handle to the pool. This may be
-/// unexpensively cloned for additonal handles to the same pool.
+/// A specialized thread pool for dispatch_blocking tasks.
+///
+/// This simple pool is _not_ an executor and doesn't need any "waking" or
+/// "parking" facilities. It uses an unbounded MPMC channel with the assumption
+/// that resource/capacity is externally constrained. Once constructed, threads
+/// are spawned and the instance acts as a handle to the pool. This may be
+/// inexpensively cloned for additional handles to the same pool.
 #[derive(Clone)]
 pub struct DispatchPool(Arc<Sender>);
 
