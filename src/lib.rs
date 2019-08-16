@@ -46,8 +46,7 @@ impl<'a> Future for BlockingPermitFuture<'a> {
         -> Poll<Self::Output>
     {
         if self.acquired {
-            // TODO: Or use a dedicated error for over `poll`ing?
-            return Poll::Ready(Err(Canceled))
+            panic!("BlockingPermitFuture::poll called again after acquired");
         }
 
         let mut permit = self.permit.take().unwrap_or_else(Permit::new);
