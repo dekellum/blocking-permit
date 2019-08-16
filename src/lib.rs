@@ -468,6 +468,7 @@ mod tests {
             Ok(_) => panic!("should have errored"),
             Err(IsReactorThread) => {}
         }
+        deregister_dispatch_pool();
     }
 
     #[test]
@@ -478,7 +479,7 @@ mod tests {
                 p.enter();
                 info!("do some blocking stuff");
             },
-            Err(_e) => panic!("errored")
+            Err(e) => panic!("errored: {}", e)
         }
     }
 
