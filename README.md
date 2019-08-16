@@ -1,6 +1,6 @@
 # blocking-permit
 
-Experiments with tokio-sync and blocking ergonomics.
+Experiments with enabling blocking operations on all types of executors.
 
 See:
 

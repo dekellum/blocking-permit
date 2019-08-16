@@ -7,7 +7,8 @@ use std::thread;
 use crossbeam_channel as cbch;
 use num_cpus;
 
-/// A specialized thread pool for dispatch_blocking tasks.
+/// A specialized thread pool for
+/// [`dispatch_blocking`](crate::dispatch_blocking) tasks.
 ///
 /// This simple pool is _not_ an executor and doesn't need any "waking" or
 /// "parking" facilities. It uses an unbounded MPMC channel with the assumption

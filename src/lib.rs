@@ -1,3 +1,6 @@
+//! Experimental [`BlockingPermit`] and future, and an alternative
+//! [`DispatchPool`] for enabling blocking operations on all types of
+//! executors.
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
