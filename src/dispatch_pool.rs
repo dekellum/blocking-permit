@@ -40,9 +40,6 @@ enum Work {
 
 thread_local!(static POOL: RefCell<Option<DispatchPool>> = RefCell::new(None));
 
-// TODO: Currently unclear if a panic'ing zero size pool is useful to disable
-// the feature.
-
 impl DispatchPool {
     /// Create new pool using defaults.
     pub fn new() -> DispatchPool {
@@ -55,15 +52,7 @@ impl DispatchPool {
     }
 
     /// Enqueue a new blocking operation closure, returning immediately.
-    ///
-    /// ## Panics
-    ///
-    /// This will panic if a zero size pool was configured. Attempts to spawn
-    /// after the pool is shutdown are ignored.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
-        if self.0.pool_size == 0 {
-            panic!( "Invalid attempt to spawn on a zero sized DispatchPool" );
-        }
         self.0.tx.try_send(Work::Unit(f)).expect("transmit success");
         // TODO: Maybe log and otherwise ignore any errors?
     }
@@ -161,12 +150,12 @@ impl DispatchPoolBuilder {
 
     /// Set the fixed number of threads in the pool.
     ///
+    /// This must at least be one (1) thread, asserted.
+    ///
     /// Default: the number of logical CPU's, minus one, if more than
     /// one.
-    ///
-    /// Setting to zero is allowed, in which case any attempt to spawn to this
-    /// pool will panic.
     pub fn pool_size(&mut self, size: usize) -> &mut Self {
+        assert!(size > 0);
         self.pool_size = Some(size);
         self
     }
