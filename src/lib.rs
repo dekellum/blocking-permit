@@ -1,27 +1,25 @@
 //! Experimental [`BlockingPermit`] and future, and an alternative
 //! [`DispatchPool`] for enabling blocking operations on all types of
 //! executors.
+
 #![warn(rust_2018_idioms)]
 #![feature(async_await)]
 
-use log::warn;
-
 mod dispatch;
 mod dispatch_pool;
+mod permit;
 
 pub use dispatch::{dispatch_blocking, dispatch_rx, DispatchBlocking};
 
 pub use dispatch_pool::{DispatchPool, DispatchPoolBuilder};
 
-mod permit;
-
 pub use permit::{
+    blocking_permit,
+    blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
     Canceled,
     IsReactorThread,
-    blocking_permit,
-    blocking_permit_future,
 };
 
 /// Attempt to obtain a permit for a blocking operation on thread, or
