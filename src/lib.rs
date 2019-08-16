@@ -450,6 +450,10 @@ mod tests {
         DispatchPool::register_thread_local(&pool);
     }
 
+    fn deregister_dispatch_pool() {
+        DispatchPool::deregister();
+    }
+
     fn maybe_register_dispatch_pool() {
         #[cfg(feature="current_thread")] {
             register_dispatch_pool();
@@ -548,7 +552,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = fu_exec::block_on(TestFuture::new()).expect("success");
         assert!(val == 41 || val == 42);
-        DispatchPool::deregister();
+        deregister_dispatch_pool();
     }
 
     #[test]
@@ -579,7 +583,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = fu_exec::block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
-        DispatchPool::deregister();
+        deregister_dispatch_pool();
     }
 
     #[test]
@@ -605,7 +609,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = fu_exec::block_on(task).expect("task success");
         assert!(val == 41 || val == 42);
-        DispatchPool::deregister();
+        deregister_dispatch_pool();
     }
 
     #[test]
@@ -620,7 +624,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = fu_exec::block_on(task).expect("task success");
         assert_eq!(val, 41);
-        DispatchPool::deregister();
+        deregister_dispatch_pool();
     }
 
     #[test]
@@ -635,7 +639,7 @@ mod tests {
         maybe_register_dispatch_pool();
         let val = fu_exec::block_on(task).expect("task success");
         assert_eq!(val, 41);
-        DispatchPool::deregister();
+        deregister_dispatch_pool();
     }
 
     #[test]
@@ -663,7 +667,7 @@ mod tests {
         }
         pool.run();
         assert_eq!(1000, FINISHED.load(Ordering::SeqCst));
-        DispatchPool::deregister();
+        deregister_dispatch_pool();
     }
 
     #[test]
