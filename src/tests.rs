@@ -14,7 +14,9 @@ use lazy_static::lazy_static;
 use log::{debug, info};
 
 use tokio_sync::semaphore::Semaphore;
-use tokio_threadpool as runtime;
+
+#[cfg(feature="tokio_pool")]
+use tokio_executor::threadpool as tokio_pool;
 
 use crate::*;
 
@@ -277,6 +279,7 @@ fn test_futr_local_pool() {
     deregister_dispatch_pool();
 }
 
+#[cfg(feature="tokio_pool")]
 #[test]
 fn test_tokio_threadpool() {
     log_init();
@@ -285,7 +288,7 @@ fn test_tokio_threadpool() {
     }
     static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
-    let rt = runtime::Builder::new()
+    let rt = tokio_pool::Builder::new()
         .pool_size(7)
         .max_blocking(32768-7)
         .build();

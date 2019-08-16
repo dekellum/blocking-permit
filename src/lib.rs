@@ -113,6 +113,7 @@ pub use permit::{
 /// This variant is for the tokio concurrent runtime (`ThreadPool`) in its
 /// current state, where [`BlockingPermit::run_unwrap`] must be used, and will
 /// eventually be deprecated.
+#[cfg(feature="tokio_pool")]
 #[macro_export] macro_rules! permit_run_or_dispatch {
     (|| $b:block) => {
         match blocking_permit() {

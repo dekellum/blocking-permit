@@ -7,7 +7,9 @@ use std::task::{Context, Poll};
 use log::{warn, debug};
 
 use tokio_sync::semaphore::{Permit, Semaphore};
-use tokio_threadpool;
+
+#[cfg(feature="tokio_pool")]
+use tokio_executor::threadpool as tokio_pool;
 
 use crate::DispatchPool;
 
@@ -72,8 +74,9 @@ impl<'a> BlockingPermit<'a> {
     /// ## TODO
     ///
     /// This currently awaits access to a
-    /// `tokio_threadpool::enter_blocking_section` function or similar, until
-    /// then use the `run` or `run_unwrap` methods which takes a closure.
+    /// `tokio_executor::threadpool::enter_blocking_section` function or
+    /// similar, until then use the `run` or `run_unwrap` methods which takes a
+    /// closure.
     ///
     /// ## Panics
     ///
@@ -90,8 +93,8 @@ impl<'a> BlockingPermit<'a> {
 
     /// Enter and run the blocking closure.
     ///
-    /// This wraps the "legacy" `tokio_threadpool::blocking` call with the same
-    /// return value.  A caller may wish to panic (see
+    /// This wraps the "legacy" `tokio_executor::threadpool::blocking` call
+    /// with the same return value.  A caller may wish to panic (see
     /// [`run_unwrap`](BlockingPermit::run_unwrap) or propigate as an error,
     /// any result other than `Ready(Ok(T))`, for example:
     ///
@@ -113,20 +116,21 @@ impl<'a> BlockingPermit<'a> {
     ///
     /// Panics if this `BlockingPermit` has already been entered (via `enter`
     /// or `run`*).
+    #[cfg(feature="tokio_pool")]
     pub fn run<F, T>(&self, f: F)
-        -> Poll<Result<T, tokio_threadpool::BlockingError>>
+        -> Poll<Result<T, tokio_pool::BlockingError>>
         where F: FnOnce() -> T
     {
         if self.entered.replace(true) {
             panic!("BlockingPermit::run (or enter) called twice!");
         }
-        tokio_threadpool::blocking(f)
+        tokio_pool::blocking(f)
     }
 
     /// Enter and run the blocking closure, with confidence.
     ///
-    /// This wraps the "legacy" `tokio_threadpool::blocking`, unwraps and
-    /// returns the value `v` of `Poll::Ready(Ok(v))`, type T, or panics on
+    /// This wraps the "legacy" `tokio_executor::threadpool::blocking`, unwraps
+    /// and returns the value `v` of `Poll::Ready(Ok(v))`, type T, or panics on
     /// other returns.
     ///
     /// ## TODO
@@ -141,7 +145,8 @@ impl<'a> BlockingPermit<'a> {
     ///
     /// Panics if this `BlockingPermit` has already been entered (via `enter`
     /// or `run`*).
-     pub fn run_unwrap<F, T>(&self, f: F) -> T
+    #[cfg(feature="tokio_pool")]
+    pub fn run_unwrap<F, T>(&self, f: F) -> T
         where F: FnOnce() -> T
     {
         match self.run(f) {
