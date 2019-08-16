@@ -1,5 +1,7 @@
 # blocking-permit
 
+[![Travis CI Build](https://travis-ci.org/dekellum/blocking-permit.svg?branch=master)](https://travis-ci.org/dekellum/blocking-permit)
+
 Experiments with enabling blocking operations on all types of executors.
 
 See:
@@ -20,5 +22,5 @@ This project is dual licensed under either of following:
 ### Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in tardy-sink by you, as defined by the Apache License, shall be
+for inclusion in blocking-permit by you, as defined by the Apache License, shall be
 dual licensed as above, without any additional terms or conditions.
