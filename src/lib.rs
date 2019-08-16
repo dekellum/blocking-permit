@@ -234,6 +234,9 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
     })
 }
 
+/// Attempt to obtain a permit for a blocking operation on thread, or
+/// otherwise dispatch.
+///
 /// Helper macro for use in the context of an `async` block or function,
 /// repeating the same code block in thread if [`blocking_permit_future`] (or
 /// [`blocking_permit`]) succeeds, or via [`dispatch_rx`], if
@@ -309,11 +312,17 @@ pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
     };
 }
 
+/// Attempt to obtain a permit for a blocking operation on thread, or
+/// otherwise dispatch (legacy version).
+///
 /// Helper macro for use in the context of an `async` block or function,
 /// repeating the same code block in thread if [`blocking_permit_future`] (or
 /// [`blocking_permit`]) succeeds, or via [`dispatch_rx`], if
-/// [`IsReactorThread`] is returned. This variant is for the tokio concurrent
-/// runtime in its current state, where `BlockingPermit::run` must be used.
+/// [`IsReactorThread`] is returned.
+///
+/// This variant is for the tokio concurrent runtime (`ThreadPool`) in its
+/// current state, where [`BlockingPermit::run`] must be used, and will
+/// eventually be deprecated.
 #[macro_export] macro_rules! permit_run_or_dispatch {
     (|| $b:block) => {
         match blocking_permit() {
