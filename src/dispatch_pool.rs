@@ -74,14 +74,14 @@ impl DispatchPool {
         POOL.with(|p| p.borrow().is_some())
     }
 
-    /// Enqueue a new blocking operation closure on the registered thread local
+    /// Enqueue a new blocking operation closure on the thread local registered
     /// pool, returning immediately.
     ///
     /// ## Panics
     ///
     /// Panics if no thread pool is registered, e.g. if
     /// [`DispatchPool::is_thread_registered`] would return false.
-    pub fn spawn_local(f: Box<dyn FnOnce() + Send>) {
+    pub fn spawn_registered(f: Box<dyn FnOnce() + Send>) {
         POOL.with(|p| {
             p.borrow().as_ref()
                 .expect("no thread local BlockingPool was registered")

@@ -21,7 +21,7 @@ pub fn dispatch_blocking(f: Box<dyn FnOnce() + Send>)
     // TODO: Presumably with the concurrent runtime this should get queued on
     // an existing blocking thread (instead of requiring DispatchPool to be
     // registered for each concurrent runtime worker thread.
-    DispatchPool::spawn_local(f);
+    DispatchPool::spawn_registered(f);
 }
 
 /// Dispatch a blocking operation in a closure via [`dispatch_blocking`], and
