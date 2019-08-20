@@ -50,26 +50,26 @@ pub use permit::{
 #[macro_export] macro_rules! permit_or_dispatch {
     ($b:expr) => {{
         let b = $b;
-        match blocking_permit() {
+        match $crate::blocking_permit() {
             Ok(permit) => {
                 permit.enter();
                 b()
             }
-            Err(IsReactorThread) => {
-                dispatch_rx(b) .await?
+            Err($crate::IsReactorThread) => {
+                $crate::dispatch_rx(b) .await?
             }
         }
     }};
     ($c:expr, $b:expr) => {{
         let b = $b;
-        match blocking_permit_future($c) {
+        match $crate::blocking_permit_future($c) {
             Ok(f) => {
                 let permit = f .await?;
                 permit.enter();
                 b()
             }
-            Err(IsReactorThread) => {
-                dispatch_rx(b) .await?
+            Err($crate::IsReactorThread) => {
+                $crate::dispatch_rx(b) .await?
             }
         }
     }};
@@ -90,24 +90,24 @@ pub use permit::{
 #[macro_export] macro_rules! permit_run_or_dispatch {
     ($b:expr) => {{
         let b = $b;
-        match blocking_permit() {
+        match $crate::blocking_permit() {
             Ok(permit) => {
                 permit.run_unwrap(b)
             }
-            Err(IsReactorThread) => {
-                dispatch_rx(b) .await?
+            Err($crate::IsReactorThread) => {
+                $crate::dispatch_rx(b) .await?
             }
         }
     }};
     ($c:expr, $b:expr) => {{
         let b = $b;
-        match blocking_permit_future($c) {
+        match $crate::blocking_permit_future($c) {
             Ok(f) => {
                 let permit = f .await?;
                 permit.run_unwrap(b)
             }
-            Err(IsReactorThread) => {
-                dispatch_rx(b) .await?
+            Err($crate::IsReactorThread) => {
+                $crate::dispatch_rx(b) .await?
             }
         }
     }};

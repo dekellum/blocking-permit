@@ -5,7 +5,7 @@ use std::path::Path;
 use lazy_static::lazy_static;
 use tokio_sync::semaphore::Semaphore;
 
-use crate::*;
+use crate::{permit_or_dispatch, Canceled};
 
 impl From<Canceled> for io::Error {
     fn from(me: Canceled) -> io::Error {
