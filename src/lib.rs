@@ -34,8 +34,12 @@ pub use permit::{
 ///
 /// If the first argument is a `Semaphore` reference, uses
 /// [`blocking_permit_future`] with that `Semaphore`, otherwise uses
-/// [`blocking_permit`] (unlimited). Also the return type of the _closure_ may
-/// be optionally annotated.
+/// [`blocking_permit`] (unlimited).
+///
+/// The final and required argument is a closure over the blocking operation,
+/// which should return a `Result<T, E>` where `From<Canceled>` is implemented
+/// for type E. The return type of the closure may be annotated as
+/// necessary. The closure may also be a move closure.
 ///
 /// TODO: usage examples/ doc-tests
 ///
@@ -44,60 +48,31 @@ pub use permit::{
 /// permit_or_dispatch!(&semaphore, || { /*.. blocking code..*/ });
 /// ```
 #[macro_export] macro_rules! permit_or_dispatch {
-    (|| $b:block) => {
+    ($b:expr) => {{
+        let b = $b;
         match blocking_permit() {
-            Err(IsReactorThread) => {
-                dispatch_rx(|| {$b})
-                    .map_err(|_| Canceled)
-                    .await
-            }
             Ok(permit) => {
                 permit.enter();
-                Ok({$b})
+                b()
             }
-        }
-    };
-    (|| -> $a:ty $b:block) => {
-        match blocking_permit() {
             Err(IsReactorThread) => {
-                dispatch_rx(|| -> $a {$b})
-                    .map_err(|_| Canceled)
-                    .await
-            }
-            Ok(permit) => {
-                permit.enter();
-                Ok({$b})
+                dispatch_rx(b) .await?
             }
         }
-    };
-    ($c:expr, || $b:block) => {
+    }};
+    ($c:expr, $b:expr) => {{
+        let b = $b;
         match blocking_permit_future($c) {
-            Err(IsReactorThread) => {
-                dispatch_rx(|| {$b})
-                    .map_err(|_| Canceled)
-                    .await
-            }
             Ok(f) => {
                 let permit = f .await?;
                 permit.enter();
-                Ok({$b})
+                b()
             }
-        }
-    };
-    ($c:expr, || -> $a:ty $b:block) => {
-        match blocking_permit_future($c) {
             Err(IsReactorThread) => {
-                dispatch_rx(|| -> $a {$b})
-                    .map_err(|_| Canceled)
-                    .await
-            }
-            Ok(f) => {
-                let permit = f .await?;
-                permit.enter();
-                Ok({$b})
+                dispatch_rx(b) .await?
             }
         }
-    };
+    }};
 }
 
 /// Attempt to obtain a permit for a blocking operation on thread, or
@@ -113,56 +88,29 @@ pub use permit::{
 /// eventually be deprecated.
 #[cfg(feature="tokio_pool")]
 #[macro_export] macro_rules! permit_run_or_dispatch {
-    (|| $b:block) => {
+    ($b:expr) => {{
+        let b = $b;
         match blocking_permit() {
-            Err(IsReactorThread) => {
-                dispatch_rx(|| {$b})
-                    .map_err(|_| Canceled)
-                    .await
-            }
             Ok(permit) => {
-                Ok(permit.run_unwrap(|| {$b}))
+                permit.run_unwrap(b)
+            }
+            Err(IsReactorThread) => {
+                dispatch_rx(b) .await?
             }
         }
-    };
-    (|| -> $a:ty $b:block) => {
-        match blocking_permit() {
-            Err(IsReactorThread) => {
-                dispatch_rx(|| -> $a {$b})
-                    .map_err(|_| Canceled)
-                    .await
-            }
-            Ok(permit) => {
-                Ok(permit.run_unwrap(|| -> $a {$b}))
-            }
-        }
-    };
-    ($c:expr, || $b:block) => {
+    }};
+    ($c:expr, $b:expr) => {{
+        let b = $b;
         match blocking_permit_future($c) {
-            Err(IsReactorThread) => {
-                dispatch_rx(|| {$b})
-                    .map_err(|_| Canceled)
-                    .await
-            }
             Ok(f) => {
                 let permit = f .await?;
-                Ok(permit.run_unwrap(|| {$b}))
+                permit.run_unwrap(b)
             }
-        }
-    };
-    ($c:expr, || -> $a:ty $b:block) => {
-        match blocking_permit_future($c) {
             Err(IsReactorThread) => {
-                dispatch_rx(|| -> $a {$b})
-                    .map_err(|_| Canceled)
-                    .await
-            }
-            Ok(f) => {
-                let permit = f .await?;
-                Ok(permit.run_unwrap(|| -> $a {$b}))
+                dispatch_rx(b) .await?
             }
         }
-    };
+    }};
 }
 
 #[cfg(test)]

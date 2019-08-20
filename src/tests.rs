@@ -223,10 +223,13 @@ fn async_block_await_unlimited() {
 fn async_block_with_macro_semaphore() {
     log_init();
     let task = async {
-        permit_or_dispatch!(&tokio_fs::BLOCKING_SET, || {
-            info!("do some blocking stuff, here or there");
-            41
-        })
+        permit_or_dispatch!(
+            &tokio_fs::BLOCKING_SET,
+            || -> Result::<usize, Canceled> {
+                info!("do some blocking stuff, here or there");
+                Ok(41)
+            }
+        )
     };
     maybe_register_dispatch_pool();
     let val = futr_exec::block_on(task).expect("task success");
@@ -238,9 +241,9 @@ fn async_block_with_macro_semaphore() {
 fn async_block_with_macro_unlimited() {
     log_init();
     let task = async {
-        permit_or_dispatch!(|| {
+        permit_or_dispatch!(|| -> Result<usize, Canceled> {
             info!("do some blocking stuff, here or there");
-            41
+            Ok(41)
         })
     };
     maybe_register_dispatch_pool();
@@ -262,9 +265,9 @@ fn test_futr_local_pool() {
     let mut sp = pool.spawner();
     for _ in 0..1000 {
         sp.spawn(async {
-            permit_or_dispatch!(&TEST_SET, || {
+            permit_or_dispatch!(&TEST_SET, || -> Result<usize, Canceled> {
                 info!("do some blocking stuff, here or there");
-                41
+                Ok(41)
             })
         }.map(|r| {
             assert_eq!(41, r.expect("permit_or_dispatch future"));
@@ -293,12 +296,12 @@ fn test_tokio_threadpool() {
 
     for _ in 0..1000 {
         rt.spawn(async {
-            permit_run_or_dispatch!(&TEST_SET, || {
+            permit_run_or_dispatch!(&TEST_SET, || -> Result<usize, Canceled> {
                 info!("do some blocking stuff, here or there");
-                41
+                Ok(41)
             })
         }.map(|r| {
-            assert_eq!(41, r.expect("permit_or_dispatch future"));
+            assert_eq!(41, r.expect("permit_run_or_dispatch future"));
             FINISHED.fetch_add(1, Ordering::SeqCst);
             ()
         }));
