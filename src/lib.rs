@@ -26,20 +26,20 @@ pub use permit::{
 /// otherwise dispatch.
 ///
 /// Helper macro for use in the context of an `async` block or function,
-/// repeating the same code block in thread if [`blocking_permit_future`] (or
+/// running a closure in thread if [`blocking_permit_future`] (or
 /// [`blocking_permit`]) succeeds, or via [`dispatch_rx`], if
 /// [`IsReactorThread`] is returned.
 ///
 /// ## Usage
 ///
 /// If the first argument is a `Semaphore` reference, uses
-/// [`blocking_permit_future`] with that `Semaphore`, otherwise uses
+/// [`blocking_permit_future`] for that semaphore, otherwise uses
 /// [`blocking_permit`] (unlimited).
 ///
-/// The final and required argument is a closure over the blocking operation,
+/// The final, required argument is a closure over the blocking operation,
 /// which should return a `Result<T, E>` where `From<Canceled>` is implemented
 /// for type E. The return type of the closure may be annotated as
-/// necessary. The closure may also be a move closure.
+/// necessary. The closure may also be a `move` closure.
 ///
 /// TODO: usage examples/ doc-tests
 ///
@@ -48,28 +48,28 @@ pub use permit::{
 /// permit_or_dispatch!(&semaphore, || { /*.. blocking code..*/ });
 /// ```
 #[macro_export] macro_rules! permit_or_dispatch {
-    ($b:expr) => {{
-        let b = $b;
+    ($closure:expr) => {{
+        let closure = $closure;
         match $crate::blocking_permit() {
             Ok(permit) => {
                 permit.enter();
-                b()
+                closure()
             }
             Err($crate::IsReactorThread) => {
-                $crate::dispatch_rx(b) .await?
+                $crate::dispatch_rx(closure) .await?
             }
         }
     }};
-    ($c:expr, $b:expr) => {{
-        let b = $b;
-        match $crate::blocking_permit_future($c) {
+    ($semaphore:expr, $closure:expr) => {{
+        let closure = $closure;
+        match $crate::blocking_permit_future($semaphore) {
             Ok(f) => {
                 let permit = f .await?;
                 permit.enter();
-                b()
+                closure()
             }
             Err($crate::IsReactorThread) => {
-                $crate::dispatch_rx(b) .await?
+                $crate::dispatch_rx(closure) .await?
             }
         }
     }};
@@ -79,7 +79,7 @@ pub use permit::{
 /// otherwise dispatch (legacy version).
 ///
 /// Helper macro for use in the context of an `async` block or function,
-/// repeating the same code block in thread if [`blocking_permit_future`] (or
+/// running a closure in thread if [`blocking_permit_future`] (or
 /// [`blocking_permit`]) succeeds, or via [`dispatch_rx`], if
 /// [`IsReactorThread`] is returned.
 ///
@@ -88,26 +88,26 @@ pub use permit::{
 /// eventually be deprecated.
 #[cfg(feature="tokio_pool")]
 #[macro_export] macro_rules! permit_run_or_dispatch {
-    ($b:expr) => {{
-        let b = $b;
+    ($closure:expr) => {{
+        let closure = $closure;
         match $crate::blocking_permit() {
             Ok(permit) => {
-                permit.run_unwrap(b)
+                permit.run_unwrap(closure)
             }
             Err($crate::IsReactorThread) => {
-                $crate::dispatch_rx(b) .await?
+                $crate::dispatch_rx(closure) .await?
             }
         }
     }};
-    ($c:expr, $b:expr) => {{
-        let b = $b;
-        match $crate::blocking_permit_future($c) {
+    ($semaphore:expr, $closure:expr) => {{
+        let closure = $closure;
+        match $crate::blocking_permit_future($semaphore) {
             Ok(f) => {
                 let permit = f .await?;
-                permit.run_unwrap(b)
+                permit.run_unwrap(closure)
             }
             Err($crate::IsReactorThread) => {
-                $crate::dispatch_rx(b) .await?
+                $crate::dispatch_rx(closure) .await?
             }
         }
     }};
