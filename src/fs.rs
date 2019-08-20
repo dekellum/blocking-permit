@@ -43,7 +43,7 @@ mod tests {
         let pool = DispatchPool::builder()
             .pool_size(2)
             .create();
-        DispatchPool::register_thread_local(&pool);
+        DispatchPool::register_thread_local(pool);
     }
 
     fn deregister_dispatch_pool() {

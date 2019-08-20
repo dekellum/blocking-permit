@@ -55,7 +55,7 @@ fn register_dispatch_pool() {
         .after_start(|i| debug!("starting DispatchPool thread {}", i))
         .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
         .create();
-    DispatchPool::register_thread_local(&pool);
+    DispatchPool::register_thread_local(pool);
 }
 
 fn deregister_dispatch_pool() {

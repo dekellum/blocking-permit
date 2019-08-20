@@ -58,10 +58,13 @@ impl DispatchPool {
         // TODO: Maybe log and otherwise ignore any errors?
     }
 
-    /// Register a clone of self as a thread local pool instance. Any prior
-    /// instance is returned.
-    pub fn register_thread_local(&self) -> Option<DispatchPool> {
-        POOL.with(|p| p.replace(Some(self.clone())))
+    /// Register self as a thread local pool instance. Any prior instance is
+    /// returned.
+    ///
+    /// This consumes self (by value). Self may be cloned beforehand to
+    /// preserve an owned handle.
+    pub fn register_thread_local(self) -> Option<DispatchPool> {
+        POOL.with(|p| p.replace(Some(self)))
     }
 
     /// Deregister and return any thread local pool instance.
