@@ -7,7 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use futures::executor as futr_exec;
-use futures::future::{FutureExt, TryFutureExt};
+use futures::future::FutureExt;
 use futures::task::SpawnExt;
 
 use lazy_static::lazy_static;
@@ -137,7 +137,7 @@ impl<'a> Future for TestFuture<'a> {
             }
             Delegate::Dispatch(ref mut db) => {
                 info!("delegate poll to DispatchBlocking");
-                Pin::new(&mut *db).poll(cx).map_err(|_| Canceled)
+                Pin::new(&mut *db).poll(cx)
             }
             Delegate::Permit(ref mut pf) => {
                 info!("delegate poll to BlockingPermitFuture");
@@ -148,7 +148,7 @@ impl<'a> Future for TestFuture<'a> {
                         info!("do some blocking stuff (permitted)");
                         Poll::Ready(Ok(41))
                     }
-                    Poll::Ready(Err(_)) => Poll::Ready(Err(Canceled))
+                    Poll::Ready(Err(e)) => Poll::Ready(Err(e))
                 }
             }
         }
@@ -178,7 +178,6 @@ fn async_block_await_semaphore() {
                     _i = 1;
                     41
                 })
-                    .map_err(|_| Canceled)
                     .await
             }
             Ok(f) => {
@@ -210,7 +209,6 @@ fn async_block_await_unlimited() {
                     info!("do some blocking stuff (dispatched)");
                     41
                 })
-                    .map_err(|_| Canceled)
                     .await
             }
         }

@@ -1,6 +1,10 @@
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use tokio_sync::oneshot;
 
-use crate::DispatchPool;
+use crate::{Canceled, DispatchPool};
 
 /// Dispatch a blocking operation in a closure to a non-reactor thread.
 ///
@@ -17,11 +21,6 @@ pub fn dispatch_blocking(f: Box<dyn FnOnce() + Send>)
     // registered for each concurrent runtime worker thread.
     DispatchPool::spawn_local(f);
 }
-
-/// A future type created by [`dispatch_rx`].
-// TODO: For now just using tokio_sync::oneshot channel, its error type, and
-// `Receiver` as a `Future`. Should this be wrapped with a new type?
-pub type DispatchBlocking<T> = oneshot::Receiver<T>;
 
 /// Dispatch a blocking operation in a closure via [`dispatch_blocking`], and
 /// return a future representing its return value.
@@ -42,5 +41,20 @@ pub fn dispatch_rx<F, T>(f: F) -> DispatchBlocking<T>
         tx.send(f()).ok();
     }));
 
-    rx
+    DispatchBlocking(rx)
+}
+
+/// A future type created by [`dispatch_rx`].
+pub struct DispatchBlocking<T>(oneshot::Receiver<T>);
+
+impl<T> Future for DispatchBlocking<T> {
+    type Output = Result<T, Canceled>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match Future::poll(Pin::new(&mut self.0), cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Ok(v)) => Poll::Ready(Ok(v)),
+            Poll::Ready(Err(_)) => Poll::Ready(Err(Canceled))
+        }
+    }
 }
