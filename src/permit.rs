@@ -183,14 +183,17 @@ impl<'a> Drop for BlockingPermit<'a> {
     }
 }
 
-/// Error returned as output from [`BlockingPermitFuture`] if canceled, e.g. if
-/// the associated `Semaphore` is closed.
+/// Error type returned as output from the [`BlockingPermitFuture`] or
+/// [`DispatchBlocking`](crate::DispatchBlocking) futures if they are canceled.
+///
+/// This only occurs if the associated `Semaphore` is closed or `DispatchPool`
+/// is dropped, respectively.
 #[derive(Debug)]
 pub struct Canceled;
 
 impl fmt::Display for Canceled {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Waiting for a blocking permit was canceled")
+        write!(f, "Waiting for a blocking permit or dispatch was canceled")
     }
 }
 
