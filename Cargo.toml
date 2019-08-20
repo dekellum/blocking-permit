@@ -18,6 +18,7 @@ tokio-executor = { git="https://github.com/tokio-rs/tokio", optional=true, featu
 
 [dev-dependencies]
 env_logger = { version=">=0.6.0, <0.7", default-features=false }
+tempfile = { version=">=3.1.0, <3.2" }
 
 [features]
 default=["tokio_pool"]

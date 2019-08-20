@@ -115,3 +115,6 @@ pub use permit::{
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod fs;
