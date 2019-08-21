@@ -3,7 +3,6 @@
 //! executors.
 
 #![warn(rust_2018_idioms)]
-#![feature(async_await)]
 
 mod dispatch;
 mod dispatch_pool;
