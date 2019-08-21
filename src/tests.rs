@@ -20,15 +20,8 @@ use tokio_executor::threadpool as tokio_pool;
 
 use crate::*;
 
-// TODO: Pretend for now that this is part of tokio-fs and also somehow
-// configurable.
-pub mod tokio_fs {
-    use lazy_static::lazy_static;
-    use tokio_sync::semaphore::Semaphore;
-
-    lazy_static! {
-        pub static ref BLOCKING_SET: Semaphore = Semaphore::new(1);
-    }
+lazy_static! {
+    static ref TEST_SET: Semaphore = Semaphore::new(1);
 }
 
 fn is_send<T: Send>() -> bool { true }
@@ -117,7 +110,7 @@ impl<'a> Future for TestFuture<'a> {
     {
         match self.delegate {
             Delegate::None => {
-                match blocking_permit_future(&tokio_fs::BLOCKING_SET) {
+                match blocking_permit_future(&TEST_SET) {
                     Err(IsReactorThread) => {
                         let s = "dispatched S".to_owned();
                         self.delegate = Delegate::Dispatch(
@@ -170,7 +163,7 @@ fn async_block_await_semaphore() {
     // Note how async/await makes this a lot nicer than the above
     // `TestFuture` manual way.
     let task = async {
-        match blocking_permit_future(&tokio_fs::BLOCKING_SET) {
+        match blocking_permit_future(&TEST_SET) {
             Err(IsReactorThread) => {
                 let mut _i = 0;
                 dispatch_rx(move || -> usize {
@@ -224,7 +217,7 @@ fn async_block_with_macro_semaphore() {
     log_init();
     let task = async {
         permit_or_dispatch!(
-            &tokio_fs::BLOCKING_SET,
+            &TEST_SET,
             || -> Result::<usize, Canceled> {
                 info!("do some blocking stuff, here or there");
                 Ok(41)
@@ -256,9 +249,7 @@ fn async_block_with_macro_unlimited() {
 fn test_futr_local_pool() {
     log_init();
     register_dispatch_pool();
-    lazy_static! {
-        static ref TEST_SET: Semaphore = Semaphore::new(1);
-    }
+
     static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
     let mut pool = futr_exec::LocalPool::new();
