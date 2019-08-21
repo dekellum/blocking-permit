@@ -1,6 +1,7 @@
 # blocking-permit
 
 [![Travis CI Build](https://travis-ci.org/dekellum/blocking-permit.svg?branch=master)](https://travis-ci.org/dekellum/blocking-permit)
+[![MSRV](https://img.shields.io/badge/rustc-%E2%89%A5%201.39-orange.svg)](https://github.com/rust-lang/rust/blob/master/RELEASES.md)
 
 Experiments with enabling blocking operations on all types of executors.
 
