@@ -1,6 +1,7 @@
 use std::fmt;
 
-/// Error type returned as output from the [`BlockingPermitFuture`] or
+/// Error type returned as output from the
+/// [`BlockingPermitFuture`](crate::BlockingPermitFuture) or
 /// [`DispatchBlocking`](crate::DispatchBlocking) futures if they are canceled.
 ///
 /// This only occurs if the associated `Semaphore` is closed or `DispatchPool`
@@ -8,9 +9,10 @@ use std::fmt;
 #[derive(Debug)]
 pub struct Canceled;
 
-/// Error returned by [`blocking_permit_future`] if the current thread is a
-/// fixed reactor thread, e.g. current thread runtime. This is recoverable by
-/// using [`dispatch_blocking`](crate::dispatch_blocking) instead.
+/// Error returned by [`blocking_permit_future`](crate::blocking_permit_future)
+/// if the current thread is a fixed reactor thread, e.g. current thread
+/// runtime. This is recoverable by using
+/// [`dispatch_blocking`](crate::dispatch_blocking) instead.
 #[derive(Debug)]
 pub struct IsReactorThread;
 
