@@ -7,19 +7,20 @@
 
 mod dispatch;
 mod dispatch_pool;
+mod errors;
 mod permit;
 
 pub use dispatch::{dispatch_blocking, dispatch_rx, DispatchBlocking};
 
 pub use dispatch_pool::{DispatchPool, DispatchPoolBuilder};
 
+pub use errors::{Canceled, IsReactorThread};
+
 pub use permit::{
     blocking_permit,
     blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
-    Canceled,
-    IsReactorThread,
 };
 
 /// Attempt to obtain a permit for a blocking operation on thread, or
