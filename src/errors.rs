@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io;
 
 /// Error type returned as output from the
 /// [`BlockingPermitFuture`](crate::BlockingPermitFuture) or
@@ -23,6 +24,12 @@ impl fmt::Display for Canceled {
 }
 
 impl std::error::Error for Canceled {}
+
+impl From<Canceled> for io::Error {
+    fn from(me: Canceled) -> io::Error {
+        io::Error::new(io::ErrorKind::Other, me)
+    }
+}
 
 impl fmt::Display for IsReactorThread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
