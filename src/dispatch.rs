@@ -48,6 +48,7 @@ pub fn dispatch_rx<F, T>(f: F) -> DispatchBlocking<T>
 }
 
 /// A future type created by [`dispatch_rx`].
+#[derive(Debug)]
 pub struct DispatchBlocking<T>(oneshot::Receiver<T>);
 
 impl<T> Future for DispatchBlocking<T> {
