@@ -84,6 +84,65 @@ fn unlimited_not_current_thread() {
     }
 }
 
+#[test]
+fn dispatch_panic_returns_canceled() {
+    log_init();
+    register_dispatch_pool();
+
+    let task = dispatch_rx(|| {
+        debug!("about to panic");
+        panic!("you asked for it");
+    });
+    let res = futr_exec::block_on(task);
+    match res {
+        Err(e @ Canceled) => debug!("return from panic dispatch: {}", e),
+        Ok(_) => panic!("should not succeed")
+    }
+    deregister_dispatch_pool();
+}
+
+#[test]
+fn survives_dispatch_panic() {
+    log_init();
+    let pool = DispatchPool::builder()
+        .pool_size(1)
+        .after_start(|i| debug!("starting DispatchPool thread {}", i))
+        .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
+        .create();
+    DispatchPool::register_thread_local(pool);
+
+    let mut lp = futr_exec::LocalPool::new();
+    let mut spawner = lp.spawner();
+    spawner.spawn(
+        dispatch_rx(|| {
+            debug!("about to panic");
+            panic!("you asked for it");
+        }).map(|r| {
+            if let Err(e) = r {
+                debug!("panicky dispatch_rx err: {}", e)
+            } else {
+                panic!("should not succeed");
+            }
+        })
+    ).expect("spawn 1");
+
+    spawner.spawn(
+        dispatch_rx(|| {
+            debug!("anyone here to run me?");
+        })
+            .map(|r| {
+                if let Err(e) = r {
+                    panic!("normal dispatch_rx err: {}", e)
+                }
+            })
+    ).expect("spawn 2");
+
+    lp.run();
+    drop(spawner);
+    drop(lp);
+    deregister_dispatch_pool();
+}
+
 /// Test of a manually-constructed future which uses
 /// `blocking_permit_future` and `dispatch_blocking`.
 struct TestFuture<'a> {
