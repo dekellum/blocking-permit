@@ -3,8 +3,9 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
-use log::{debug, trace};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
+use log::{debug, error, trace};
 use crossbeam_channel as cbch;
 use num_cpus;
 
@@ -18,7 +19,10 @@ use num_cpus;
 /// a handle to the pool. This may be inexpensively cloned for additional
 /// handles to the same pool.
 #[derive(Clone)]
-pub struct DispatchPool(Arc<Sender>);
+pub struct DispatchPool {
+    sender: Arc<Sender>,
+    catch_unwind: bool
+}
 
 #[derive(Debug)]
 struct Sender {
@@ -36,11 +40,13 @@ pub struct DispatchPoolBuilder {
     name_prefix: Option<String>,
     after_start: Option<AroundFn>,
     before_stop: Option<AroundFn>,
+    catch_unwind: bool
 }
 
 enum Work {
     Count,
     Unit(Box<dyn FnOnce() + Send>),
+    SafeUnit(Box<dyn FnOnce() + Send>),
     Terminate,
 }
 
@@ -65,10 +71,23 @@ impl DispatchPool {
     /// presumed lesser evil to _waiting_ for space, the task is directly run
     /// by the _calling_ thread.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
-        let ts = self.0.tx.try_send(Work::Unit(f));
-        if let Err(cbch::TrySendError::Full(Work::Unit(f))) = ts {
-            debug!("DispathPool::spawn: queue is full, running on calling thread!");
-            f();
+        let w = if self.catch_unwind {
+            Work::SafeUnit(f)
+        } else {
+            Work::Unit(f)
+        };
+
+        match self.sender.tx.try_send(w) {
+            Err(cbch::TrySendError::Full(Work::Unit(f))) |
+            Err(cbch::TrySendError::Full(Work::SafeUnit(f))) => {
+                debug!("DispathPool::spawn: queue is full, \
+                        running on calling thread!");
+                f();
+            }
+            Err(e) => {
+                panic!("DispatchPool::spawn error {}", e);
+            }
+            Ok(()) => {}
         }
     }
 
@@ -149,6 +168,11 @@ fn work(
             match rx.recv() {
                 Ok(Work::Count) => ts.increment(),
                 Ok(Work::Unit(bfn)) => bfn(),
+                Ok(Work::SafeUnit(bfn)) => {
+                    if catch_unwind(AssertUnwindSafe(bfn)).is_err() {
+                        error!("DispatchPool: panic was caught, ignored");
+                    }
+                }
                 Ok(Work::Terminate) | Err(_) => break,
             }
         }
@@ -190,7 +214,7 @@ impl Drop for Sender {
 impl fmt::Debug for DispatchPool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DispatchPool")
-            .field("threads", &self.0.counter.load(Ordering::Relaxed))
+            .field("threads", &self.sender.counter.load(Ordering::Relaxed))
             .finish()
     }
 }
@@ -205,6 +229,7 @@ impl DispatchPoolBuilder {
             name_prefix: None,
             after_start: None,
             before_stop: None,
+            catch_unwind: true
         }
     }
 
@@ -231,6 +256,17 @@ impl DispatchPoolBuilder {
     /// Default: unbounded
     pub fn queue_length(&mut self, length: usize) -> &mut Self {
         self.queue_length = Some(length);
+        self
+    }
+
+    /// Set whether to catch unwinds for dispatch tasks that panic.
+    ///
+    /// If set false, dispatch pool threads will terminate on panic unwind, and
+    /// currently they are not re-spawned.
+    ///
+    /// Default: true
+    pub fn catch_unwind(&mut self, do_catch: bool) -> &mut Self {
+        self.catch_unwind = do_catch;
         self
     }
 
@@ -332,16 +368,14 @@ impl DispatchPoolBuilder {
         // Wait until counter reaches pool size. This is not particularly a
         // guaruntee of _all_ threads, but does guaruntee _one_ thread,
         // which is material for the zero queue length case.
-        loop {
-            let count = sender.counter.load(Ordering::SeqCst);
-            if count >= pool_size { break };
-            trace!("DispatchPoolBuilder::create yielding, \
-                    pool count: {} < {}",
-                   count, pool_size);
+        while sender.counter.load(Ordering::SeqCst) < pool_size {
             thread::yield_now();
         }
 
-        DispatchPool(Arc::new(sender))
+        DispatchPool {
+            sender: Arc::new(sender),
+            catch_unwind: self.catch_unwind
+        }
     }
 }
 
