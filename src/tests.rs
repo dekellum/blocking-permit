@@ -106,6 +106,7 @@ fn survives_dispatch_panic() {
     log_init();
     let pool = DispatchPool::builder()
         .pool_size(1)
+        .queue_length(0)
         .after_start(|i| debug!("starting DispatchPool thread {}", i))
         .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
         .create();
