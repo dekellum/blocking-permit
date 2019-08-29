@@ -182,7 +182,7 @@ impl DispatchPoolBuilder {
 
     /// Set a closure to be called immediately after each thread is started.
     ///
-    /// The closure is passed an 0-based index of the thread.
+    /// The closure is passed a 0-based index of the thread.
     ///
     /// Default: None
     pub fn after_start<F>(&mut self, f: F) -> &mut Self
