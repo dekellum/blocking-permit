@@ -101,17 +101,7 @@ fn dispatch_panic_returns_canceled() {
     deregister_dispatch_pool();
 }
 
-#[test]
-fn survives_dispatch_panic() {
-    log_init();
-    let pool = DispatchPool::builder()
-        .pool_size(1)
-        .queue_length(0)
-        .after_start(|i| debug!("starting DispatchPool thread {}", i))
-        .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
-        .create();
-    DispatchPool::register_thread_local(pool);
-
+fn spawn_good_and_bad_tasks() {
     let mut lp = futr_exec::LocalPool::new();
     let mut spawner = lp.spawner();
     spawner.spawn(
@@ -139,8 +129,38 @@ fn survives_dispatch_panic() {
     ).expect("spawn 2");
 
     lp.run();
-    drop(spawner);
-    drop(lp);
+}
+
+#[test]
+fn survives_dispatch_panic_catch_unwind() {
+    log_init();
+    let pool = DispatchPool::builder()
+        .pool_size(1)
+        .catch_unwind(true)
+        .after_start(|i| debug!("starting DispatchPool thread {}", i))
+        .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
+        .create();
+    DispatchPool::register_thread_local(pool);
+
+    spawn_good_and_bad_tasks();
+
+    deregister_dispatch_pool();
+}
+
+#[test]
+fn survives_dispatch_panic_ql0() {
+    log_init();
+    let pool = DispatchPool::builder()
+        .pool_size(1)
+        .queue_length(0)
+        .catch_unwind(false)
+        .after_start(|i| debug!("starting DispatchPool thread {}", i))
+        .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
+        .create();
+    DispatchPool::register_thread_local(pool);
+
+    spawn_good_and_bad_tasks();
+
     deregister_dispatch_pool();
 }
 
