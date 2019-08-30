@@ -280,7 +280,7 @@ impl DispatchPoolBuilder {
 
     /// Set name prefix for threads in the pool.
     ///
-    /// Default: "dpx-pool-N-" where N is a 1-based static pool counter
+    /// Default: "dpx-pool-N-" where N is a 0-based static pool counter
     pub fn name_prefix<S: Into<String>>(&mut self, name_prefix: S) -> &mut Self {
         self.name_prefix = Some(name_prefix.into());
         self
@@ -331,7 +331,7 @@ impl DispatchPoolBuilder {
         };
         assert!(pool_size >= 1);
 
-        static POOL_CNT: AtomicUsize = AtomicUsize::new(1);
+        static POOL_CNT: AtomicUsize = AtomicUsize::new(0);
         let name_prefix = if let Some(ref prefix) = self.name_prefix {
             prefix.to_owned()
         } else {
