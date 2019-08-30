@@ -196,15 +196,13 @@ impl<'a> Drop for BlockingPermit<'a> {
 /// If the number of blocking threads need not be constrained by a `Semaphore`,
 /// then this operation can be short circuited via [`blocking_permit`].
 ///
-/// This returns an `IsReactorThread` error if the current thread can't become
-/// blocking, e.g. is a current thread runtime. This is recoverable by using
+/// This returns an `IsReactorThread` error if the calling thread can't or
+/// shouldn't become blocking, e.g. is a current thread runtime or is otherwise
+/// registered to use a `DispatchPool`. This is recoverable by using
 /// [`dispatch_blocking`](crate::dispatch_blocking) instead.
 pub fn blocking_permit_future(semaphore: &Semaphore)
     -> Result<BlockingPermitFuture<'_>, IsReactorThread>
 {
-    // TODO: Change the check when available, or refine the error name and
-    // message. This makes `DispatchPool` drop-in applicable, but the error
-    // is potentially confusing.
     if DispatchPool::is_thread_registered() {
         return Err(IsReactorThread);
     }
@@ -230,9 +228,6 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
 /// [`dispatch_blocking`](crate::dispatch_blocking) instead.
 pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
 {
-    // TODO: Change the check when available, or refine the error name and
-    // message. This makes `DispatchPool` drop-in applicable, but the error
-    // is potentially confusing.
     if DispatchPool::is_thread_registered() {
         return Err(IsReactorThread);
     }

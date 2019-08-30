@@ -11,9 +11,10 @@ use std::io;
 pub struct Canceled;
 
 /// Error returned by [`blocking_permit_future`](crate::blocking_permit_future)
-/// if the current thread is a fixed reactor thread, e.g. current thread
-/// runtime. This is recoverable by using
-/// [`dispatch_blocking`](crate::dispatch_blocking) instead.
+/// if the calling thread can't or shouldn't become blocking, e.g. is a current
+/// thread runtime or is otherwise registered to use a `DispatchPool`. This is
+/// recoverable by using [`dispatch_blocking`](crate::dispatch_blocking)
+/// instead.
 #[derive(Debug)]
 pub struct IsReactorThread;
 
@@ -33,9 +34,8 @@ impl From<Canceled> for io::Error {
 
 impl fmt::Display for IsReactorThread {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Can't block a fixed reactor thread, \
-                   e.g. current thread runtime, \
-                   must dispatch instead)")
+        write!(f, "Shouldn't block the current thread (runtime?); \
+                   use dispatch instead")
     }
 }
 
