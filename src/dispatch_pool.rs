@@ -3,24 +3,31 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
+use log::{debug, error, trace};
 use crossbeam_channel as cbch;
 use num_cpus;
 
-/// A specialized thread pool for
+/// A specialized thread pool and queue for
 /// [`dispatch_blocking`](crate::dispatch_blocking) tasks.
 ///
 /// This simple pool is _not_ an executor and doesn't need any "waking" or
-/// "parking" facilities. It uses an unbounded MPMC channel with the assumption
-/// that resource/capacity is externally constrained. Once constructed, threads
-/// are spawned and the instance acts as a handle to the pool. This may be
-/// inexpensively cloned for additional handles to the same pool.
+/// "parking" facilities. By default it uses an unbounded MPMC channel with the
+/// assumption that resource/capacity is externally constrained. Once
+/// constructed, a fixed number of threads are spawned and the instance acts as
+/// a handle to the pool. This may be inexpensively cloned for additional
+/// handles to the same pool.
 #[derive(Clone)]
-pub struct DispatchPool(Arc<Sender>);
+pub struct DispatchPool {
+    sender: Arc<Sender>,
+    catch_unwind: bool
+}
 
+#[derive(Debug)]
 struct Sender {
     tx: cbch::Sender<Work>,
-    pool_size: usize,
+    counter: Arc<AtomicUsize>,
 }
 
 type AroundFn = Arc<dyn Fn(usize) + Send + Sync>;
@@ -28,14 +35,18 @@ type AroundFn = Arc<dyn Fn(usize) + Send + Sync>;
 /// A builder for [`DispatchPool`] supporting various configuration.
 pub struct DispatchPoolBuilder {
     pool_size: Option<usize>,
+    queue_length: Option<usize>,
     stack_size: Option<usize>,
     name_prefix: Option<String>,
     after_start: Option<AroundFn>,
     before_stop: Option<AroundFn>,
+    catch_unwind: bool
 }
 
 enum Work {
+    Count,
     Unit(Box<dyn FnOnce() + Send>),
+    SafeUnit(Box<dyn FnOnce() + Send>),
     Terminate,
 }
 
@@ -52,10 +63,32 @@ impl DispatchPool {
         DispatchPoolBuilder::new()
     }
 
-    /// Enqueue a new blocking operation closure, returning immediately.
+    /// Enqueue a blocking operation to be executed.
+    ///
+    /// This first attempts to send to the associated queue, which will always
+    /// succeed if _unbounded_, e.g. no [`DispatchPoolBuilder::queue_length`]
+    /// is set, the default. If however the queue is _bounded_ then, as a
+    /// presumed lesser evil to _waiting_ for space, the task is directly run
+    /// by the _calling_ thread.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
-        self.0.tx.try_send(Work::Unit(f)).expect("transmit success");
-        // TODO: Maybe log and otherwise ignore any errors?
+        let w = if self.catch_unwind {
+            Work::SafeUnit(f)
+        } else {
+            Work::Unit(f)
+        };
+
+        match self.sender.tx.try_send(w) {
+            Err(cbch::TrySendError::Full(Work::Unit(f))) |
+            Err(cbch::TrySendError::Full(Work::SafeUnit(f))) => {
+                debug!("DispathPool::spawn: queue is full, \
+                        running on calling thread!");
+                f();
+            }
+            Err(e) => {
+                panic!("DispatchPool::spawn error {}", e);
+            }
+            Ok(()) => {}
+        }
     }
 
     /// Register self as a thread local pool instance. Any prior instance is
@@ -93,8 +126,32 @@ impl DispatchPool {
     }
 }
 
+// Guard type that decrements pool size on drop, including on abnormal unwind.
+struct Turnstile {
+    index: usize,
+    counter: Arc<AtomicUsize>,
+    before_stop: Option<AroundFn>
+}
+
+impl Turnstile {
+    fn increment(&self) {
+        self.counter.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+impl Drop for Turnstile {
+    fn drop(&mut self) {
+        trace!("Turnstile::drop entered");
+        self.counter.fetch_sub(1, Ordering::SeqCst);
+        if let Some(bsfn) = &self.before_stop {
+            bsfn(self.index);
+        }
+    }
+}
+
 fn work(
     index: usize,
+    counter: Arc<AtomicUsize>,
     after_start: Option<AroundFn>,
     before_stop: Option<AroundFn>,
     rx: cbch::Receiver<Work>)
@@ -104,15 +161,21 @@ fn work(
     }
     drop(after_start);
 
-    loop {
-        match rx.recv() {
-            Ok(Work::Unit(bfn)) => bfn(),
-            Ok(Work::Terminate) | Err(_) => break,
+    {
+        let ts = Turnstile { index, counter, before_stop };
+        let rx = rx; // move here so it drops before ts.
+        loop {
+            match rx.recv() {
+                Ok(Work::Count) => ts.increment(),
+                Ok(Work::Unit(bfn)) => bfn(),
+                Ok(Work::SafeUnit(bfn)) => {
+                    if catch_unwind(AssertUnwindSafe(bfn)).is_err() {
+                        error!("DispatchPool: panic was caught, ignored");
+                    }
+                }
+                Ok(Work::Terminate) | Err(_) => break,
+            }
         }
-    }
-
-    if let Some(bsfn) = before_stop {
-        bsfn(index);
     }
 }
 
@@ -124,8 +187,24 @@ impl Default for DispatchPool {
 
 impl Drop for Sender {
     fn drop(&mut self) {
-        for _ in 0..self.pool_size {
-            if self.tx.try_send(Work::Terminate).is_err() {
+        trace!("Sender::drop entered");
+        let threads = self.counter.load(Ordering::SeqCst);
+        let mut terms = 0;
+        for _ in 0..threads {
+            if let Err(e) = self.tx.try_send(Work::Terminate) {
+                trace!("Sender::drop on terminate send: {}", e);
+                break;
+            }
+            terms += 1;
+        }
+        // This intentionally only yields a number of times equivelent to the
+        // termination messages sent, to avoid any risk of hanging.
+        for _ in 0..terms {
+            let size = self.counter.load(Ordering::SeqCst);
+            if size > 0 {
+                trace!("Sender::drop yielding, pool size: {}", size);
+                thread::yield_now();
+            } else {
                 break;
             }
         }
@@ -135,7 +214,7 @@ impl Drop for Sender {
 impl fmt::Debug for DispatchPool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DispatchPool")
-            .field("threads", &self.0.pool_size)
+            .field("threads", &self.sender.counter.load(Ordering::Relaxed))
             .finish()
     }
 }
@@ -145,10 +224,12 @@ impl DispatchPoolBuilder {
     pub fn new() -> DispatchPoolBuilder {
         DispatchPoolBuilder {
             pool_size: None,
+            queue_length: None,
             stack_size: None,
             name_prefix: None,
             after_start: None,
             before_stop: None,
+            catch_unwind: true
         }
     }
 
@@ -161,6 +242,31 @@ impl DispatchPoolBuilder {
     pub fn pool_size(&mut self, size: usize) -> &mut Self {
         assert!(size > 0);
         self.pool_size = Some(size);
+        self
+    }
+
+    /// Set the length (aka maximum capacity or depth) of the associated
+    /// dispatch task queue.
+    ///
+    /// Note that if this length is ever exceeded, tasks will be executed on
+    /// the _calling thread_, see [`DispatchPool::spawn`].  A length of
+    /// zero (0) is an accepted value, and guaruntees a task will be run
+    /// _immediately_ by a pool thread, or the calling thread.
+    ///
+    /// Default: unbounded
+    pub fn queue_length(&mut self, length: usize) -> &mut Self {
+        self.queue_length = Some(length);
+        self
+    }
+
+    /// Set whether to catch unwinds for dispatch tasks that panic.
+    ///
+    /// If set false, dispatch pool threads will terminate on panic unwind, and
+    /// currently they are not re-spawned.
+    ///
+    /// Default: true
+    pub fn catch_unwind(&mut self, do_catch: bool) -> &mut Self {
+        self.catch_unwind = do_catch;
         self
     }
 
@@ -207,7 +313,12 @@ impl DispatchPoolBuilder {
     /// Create a new [`DispatchPool`](DispatchPool) with the provided
     /// configuration.
     pub fn create(&mut self) -> DispatchPool {
-        let (tx, rx) = cbch::unbounded();
+
+        let (tx, rx) = if let Some(len) = self.queue_length {
+            cbch::bounded(len)
+        } else {
+            cbch::unbounded()
+        };
 
         let pool_size = if let Some(size) = self.pool_size {
             size
@@ -218,6 +329,7 @@ impl DispatchPoolBuilder {
             }
             size
         };
+        assert!(pool_size >= 1);
 
         static POOL_CNT: AtomicUsize = AtomicUsize::new(1);
         let name_prefix = if let Some(ref prefix) = self.name_prefix {
@@ -228,7 +340,10 @@ impl DispatchPoolBuilder {
                 POOL_CNT.fetch_add(1, Ordering::SeqCst))
         };
 
-        let pool = DispatchPool(Arc::new(Sender { tx, pool_size }));
+        let sender = Sender {
+            tx,
+            counter: Arc::new(AtomicUsize::new(0))
+        };
 
         for i in 0..pool_size {
             let after_start = self.after_start.clone();
@@ -240,12 +355,27 @@ impl DispatchPoolBuilder {
             if let Some(size) = self.stack_size {
                 builder = builder.stack_size(size);
             }
+            let cnt = sender.counter.clone();
             builder
-                .spawn(move || work(i, after_start, before_stop, rx))
-                .expect("thread spawned");
+                .spawn(move || work(i, cnt, after_start, before_stop, rx))
+                .expect("DispatchPoolBuilder::create thread spawn");
+
+            // Send a task to count the new thread, possibly blocking if
+            // bounded, until _some_ thread is available.
+            sender.tx.send(Work::Count).expect("success blank");
         }
 
-        pool
+        // Wait until counter reaches pool size. This is not particularly a
+        // guaruntee of _all_ threads, but does guaruntee _one_ thread,
+        // which is material for the zero queue length case.
+        while sender.counter.load(Ordering::SeqCst) < pool_size {
+            thread::yield_now();
+        }
+
+        DispatchPool {
+            sender: Arc::new(sender),
+            catch_unwind: self.catch_unwind
+        }
     }
 }
 
