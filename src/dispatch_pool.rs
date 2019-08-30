@@ -20,7 +20,8 @@ use num_cpus;
 #[derive(Clone)]
 pub struct DispatchPool {
     sender: Arc<Sender>,
-    catch_unwind: bool
+    catch_unwind: bool,
+    run_on_caller: bool
 }
 
 #[derive(Debug)]
@@ -64,10 +65,15 @@ impl DispatchPool {
     ///
     /// This first attempts to send to the associated queue, which will always
     /// succeed if _unbounded_, e.g. no [`DispatchPoolBuilder::queue_length`]
-    /// is set, the default. If however the queue is _bounded_ then, as a
-    /// presumed lesser evil to _waiting_ for space, the task is directly run
-    /// by the _calling_ thread.
+    /// is set, the default. If however the queue is _bounded_ or the pool is
+    /// configured with zero (pool_size) threads the task is directly run by
+    /// the _calling_ thread.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
+        if self.run_on_caller {
+            f();
+            return;
+        }
+
         let w = if self.catch_unwind {
             Work::SafeUnit(f)
         } else {
@@ -198,12 +204,13 @@ impl DispatchPoolBuilder {
 
     /// Set the fixed number of threads in the pool.
     ///
-    /// This must at least be one (1) thread, asserted.
+    /// This may be zero, in which case, all tasks are executed on the
+    /// _calling thread_, see [`DispatchPool::spawn`]. This is allowed
+    /// primarly as a convenience for comparative benchmarking.
     ///
     /// Default: the number of logical CPU's, minus one, if more than
     /// one.
     pub fn pool_size(&mut self, size: usize) -> &mut Self {
-        assert!(size > 0);
         self.pool_size = Some(size);
         self
     }
@@ -295,7 +302,6 @@ impl DispatchPoolBuilder {
             }
             size
         };
-        assert!(pool_size >= 1);
 
         static POOL_CNT: AtomicUsize = AtomicUsize::new(0);
         let name_prefix = if let Some(ref prefix) = self.name_prefix {
@@ -340,7 +346,8 @@ impl DispatchPoolBuilder {
 
         DispatchPool {
             sender: Arc::new(sender),
-            catch_unwind: self.catch_unwind
+            catch_unwind: self.catch_unwind,
+            run_on_caller: (pool_size == 0)
         }
     }
 }
