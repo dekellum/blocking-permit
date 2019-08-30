@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use log::{warn, debug};
+use log::{info, debug, trace};
 
 use tokio_sync::semaphore::{Permit, Semaphore};
 
@@ -153,7 +153,7 @@ impl<'a> BlockingPermit<'a> {
         match self.run(f) {
             Poll::Ready(Ok(v)) => v,
             Poll::Ready(Err(e)) => {
-                panic!("misused: {}", e)
+                panic!("permit misused: {}", e)
             }
             Poll::Pending => {
                 panic!("set tokio_threadpool max_blocking higher,\
@@ -172,14 +172,14 @@ impl<'a> Drop for BlockingPermit<'a> {
         if let Some((ref mut permit, ref semaphore)) = self.permit {
             permit.release(semaphore);
             if entered {
-                debug!("Dropped BlockingPermit (semaphore)");
+                trace!("Dropped BlockingPermit (semaphore)");
             } else {
-                warn!("Dropped BlockingPermit (semaphore) was never entered")
+                info!("Dropped BlockingPermit (semaphore) was never entered")
             }
         } else if entered {
-            debug!("Dropped BlockingPermit (unlimited)");
+            trace!("Dropped BlockingPermit (unlimited)");
         } else {
-            warn!("Dropped BlockingPermit (unlimited) was never entered")
+            info!("Dropped BlockingPermit (unlimited) was never entered")
         }
     }
 }

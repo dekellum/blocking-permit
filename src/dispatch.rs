@@ -2,8 +2,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use log::debug;
-
 use tokio_sync::oneshot;
 
 use crate::{Canceled, DispatchPool};
@@ -40,7 +38,6 @@ pub fn dispatch_rx<F, T>(f: F) -> DispatchBlocking<T>
 {
     let (tx, rx) = oneshot::channel();
     dispatch_blocking(Box::new(|| {
-        debug!("Running dispatched blocking operation");
         tx.send(f()).ok();
     }));
 
