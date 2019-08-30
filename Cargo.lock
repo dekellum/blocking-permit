@@ -322,7 +322,7 @@ dependencies = [
 [[package]]
 name = "tokio-executor"
 version = "0.2.0-alpha.4"
-source = "git+https://github.com/tokio-rs/tokio#15dc0563b73d9da3eabdbac89e55b9cfcef691e4"
+source = "git+https://github.com/tokio-rs/tokio#3d9134d13e2e1f41294d4fc4a8447ce085536529"
 dependencies = [
  "crossbeam-deque 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "crossbeam-queue 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -338,7 +338,7 @@ dependencies = [
 [[package]]
 name = "tokio-sync"
 version = "0.2.0-alpha.4"
-source = "git+https://github.com/tokio-rs/tokio#15dc0563b73d9da3eabdbac89e55b9cfcef691e4"
+source = "git+https://github.com/tokio-rs/tokio#3d9134d13e2e1f41294d4fc4a8447ce085536529"
 dependencies = [
  "fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-core-preview 0.3.0-alpha.18 (registry+https://github.com/rust-lang/crates.io-index)",
