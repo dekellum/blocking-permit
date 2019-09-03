@@ -12,9 +12,10 @@ pub struct Canceled;
 
 /// Error returned by [`blocking_permit_future`](crate::blocking_permit_future)
 /// if the calling thread can't or shouldn't become blocking, e.g. is a current
-/// thread runtime or is otherwise registered to use a `DispatchPool`. This is
-/// recoverable by using [`dispatch_blocking`](crate::dispatch_blocking)
-/// instead.
+/// thread runtime or is otherwise registered to use a `DispatchPool`.
+///
+/// This is recoverable by using
+/// [`dispatch_blocking`](crate::dispatch_blocking) instead.
 #[derive(Debug)]
 pub struct IsReactorThread;
 
