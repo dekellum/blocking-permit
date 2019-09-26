@@ -327,6 +327,9 @@ impl DispatchPoolBuilder {
             if size > 1 {
                 size -= 1;
             }
+            if size == 0 {
+                size = 1;
+            }
             size
         };
         assert!(pool_size >= 1);
