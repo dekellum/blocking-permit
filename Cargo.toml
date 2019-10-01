@@ -13,8 +13,8 @@ log = { version=">=0.4.4, <0.5" }
 crossbeam-channel = { version=">= 0.3.9, < 0.4" }
 num_cpus = { version=">= 1.10.1, < 1.11" }
 
-tokio-sync = { git="https://github.com/tokio-rs/tokio" }
-tokio-executor = { git="https://github.com/tokio-rs/tokio", optional=true, features=["threadpool"] }
+tokio-sync = { version =">=0.2.0-alpha.6, <0.3" }
+tokio-executor = { version =">=0.2.0-alpha.6, <0.3", optional=true, features=["threadpool"] }
 
 [dev-dependencies]
 env_logger = { version=">=0.6.0, <0.7", default-features=false }
