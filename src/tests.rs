@@ -103,7 +103,7 @@ fn dispatch_panic_returns_canceled() {
 
 fn spawn_good_and_bad_tasks() {
     let mut lp = futr_exec::LocalPool::new();
-    let mut spawner = lp.spawner();
+    let spawner = lp.spawner();
     spawner.spawn(
         dispatch_rx(|| {
             debug!("about to panic");
@@ -333,7 +333,7 @@ fn test_futr_local_pool() {
     static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
     let mut pool = futr_exec::LocalPool::new();
-    let mut sp = pool.spawner();
+    let sp = pool.spawner();
     for _ in 0..1000 {
         sp.spawn(async {
             permit_or_dispatch!(&TEST_SET, || -> Result<usize, Canceled> {
