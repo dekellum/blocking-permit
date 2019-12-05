@@ -17,7 +17,7 @@ tokio-sync = { version =">=0.2.0-alpha.6, <0.3" }
 tokio-executor = { version =">=0.2.0-alpha.6, <0.3", optional=true, features=["threadpool"] }
 
 [dev-dependencies]
-env_logger = { version=">=0.6.0, <0.7", default-features=false }
+env_logger = { version=">=0.7.1, <0.8", default-features=false }
 tempfile = { version=">=3.1.0, <3.2" }
 
 [features]
