@@ -3,6 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use futures::future::FusedFuture;
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
 use log::{info, trace};
 
@@ -47,6 +48,12 @@ impl<'a> Future for BlockingPermitFuture<'a> {
                 entered: Cell::new(false)
             })),
        }
+    }
+}
+
+impl<'a> FusedFuture for BlockingPermitFuture<'a> {
+    fn is_terminated(&self) -> bool {
+        self.acquire.is_terminated()
     }
 }
 
