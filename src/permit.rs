@@ -38,6 +38,8 @@ impl<'a> Future for BlockingPermitFuture<'a> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
+        // Safety: the self Pin means our self address is stable, and acquire
+        // is furthermore never moved.
         let acq = unsafe {
             Pin::new_unchecked(&mut self.get_unchecked_mut().acquire)
         };

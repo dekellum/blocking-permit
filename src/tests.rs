@@ -163,6 +163,9 @@ impl<'a> Future for TestFuture<'a> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
+        // Safety: orginal self Pin means our self address is stable. We pin
+        // project below only to poll ourselves or a `Delegate`, without any
+        // other moves.
         let this = unsafe { self.get_unchecked_mut() };
         match this.delegate {
             Delegate::None => {
