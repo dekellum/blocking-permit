@@ -24,18 +24,6 @@
 /// permit_or_dispatch!(&semaphore, || { /*.. blocking code..*/ });
 /// ```
 #[macro_export] macro_rules! permit_or_dispatch {
-    ($closure:expr) => {{
-        let closure = $closure;
-        match $crate::blocking_permit() {
-            Ok(permit) => {
-                permit.enter();
-                closure()
-            }
-            Err($crate::IsReactorThread) => {
-                $crate::dispatch_rx(closure) .await?
-            }
-        }
-    }};
     ($semaphore:expr, $closure:expr) => {{
         let closure = $closure;
         match $crate::blocking_permit_future($semaphore) {
@@ -64,17 +52,6 @@
 /// eventually be deprecated.
 #[cfg(feature="tokio_pool")]
 #[macro_export] macro_rules! permit_run_or_dispatch {
-    ($closure:expr) => {{
-        let closure = $closure;
-        match $crate::blocking_permit() {
-            Ok(permit) => {
-                permit.run_unwrap(closure)
-            }
-            Err($crate::IsReactorThread) => {
-                $crate::dispatch_rx(closure) .await?
-            }
-        }
-    }};
     ($semaphore:expr, $closure:expr) => {{
         let closure = $closure;
         match $crate::blocking_permit_future($semaphore) {

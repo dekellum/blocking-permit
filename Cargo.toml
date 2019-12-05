@@ -10,17 +10,16 @@ description   = "tokio blocking ergonomics prototype"
 futures = { version=">=0.3.1, <0.4" }
 lazy_static = { version=">= 1.3.0, <1.4" }
 log = { version=">=0.4.4, <0.5" }
-crossbeam-channel = { version=">= 0.4.0, < 0.5" }
-num_cpus = { version=">= 1.11.1, < 1.12" }
+crossbeam-channel = { version=">=0.4.0, <0.5" }
+num_cpus = { version=">=1.11.1, <1.12" }
+futures-intrusive = { version=">=0.2.2, <0.3" }
 
-tokio-sync = { version =">=0.2.0-alpha.6, <0.3" }
-tokio-executor = { version =">=0.2.0-alpha.6, <0.3", optional=true, features=["threadpool"] }
+tokio = { version=">=0.2.2, <0.3", optional=true, features=["rt-threaded", "rt-core", "blocking"] }
 
 [dev-dependencies]
 env_logger = { version=">=0.7.1, <0.8", default-features=false }
 tempfile = { version=">=3.1.0, <3.2" }
 
 [features]
-default=["tokio_pool"]
-tokio_pool=["tokio-executor"]
+default=["tokio"]
 current_thread=[] # testing hack

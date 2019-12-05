@@ -13,15 +13,13 @@ use futures::task::SpawnExt;
 use lazy_static::lazy_static;
 use log::{debug, info};
 
-use tokio_sync::semaphore::Semaphore;
-
 #[cfg(feature="tokio_pool")]
 use tokio_executor::threadpool as tokio_pool;
 
 use crate::*;
 
 lazy_static! {
-    static ref TEST_SET: Semaphore = Semaphore::new(1);
+    static ref TEST_SET: Semaphore = Semaphore::new(true, 1);
 }
 
 fn is_send<T: Send>() -> bool { true }
@@ -58,29 +56,6 @@ fn deregister_dispatch_pool() {
 fn maybe_register_dispatch_pool() {
     #[cfg(feature="current_thread")] {
         register_dispatch_pool();
-    }
-}
-
-#[test]
-fn unlimited_current_thread() {
-    log_init();
-    register_dispatch_pool();
-    match blocking_permit() {
-        Ok(_) => panic!("should have errored"),
-        Err(IsReactorThread) => {}
-    }
-    deregister_dispatch_pool();
-}
-
-#[test]
-fn unlimited_not_current_thread() {
-    log_init();
-    match blocking_permit() {
-        Ok(p) => {
-            p.enter();
-            info!("do some blocking stuff");
-        },
-        Err(e) => panic!("errored: {}", e)
     }
 }
 
@@ -185,15 +160,16 @@ impl<'a> TestFuture<'a> {
 impl<'a> Future for TestFuture<'a> {
     type Output = Result<usize, Canceled>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
-        match self.delegate {
+        let this = unsafe { self.get_unchecked_mut() };
+        match this.delegate {
             Delegate::None => {
                 match blocking_permit_future(&TEST_SET) {
                     Err(IsReactorThread) => {
                         let s = "dispatched S".to_owned();
-                        self.delegate = Delegate::Dispatch(
+                        this.delegate = Delegate::Dispatch(
                             dispatch_rx(move || -> usize {
                                 info!("do some blocking stuff ({})", s);
                                 thread::sleep(Duration::from_millis(100));
@@ -202,19 +178,22 @@ impl<'a> Future for TestFuture<'a> {
                         );
                     },
                     Ok(f) => {
-                        self.delegate = Delegate::Permit(f);
+                        this.delegate = Delegate::Permit(f);
                     }
                 }
-                self.poll(cx) // recurse once, with delegate in place
-                              // (needed for correct waking)
+                let s = unsafe { Pin::new_unchecked(this) };
+                s.poll(cx) // recurse once, with delegate in place
+                           // (needed for correct waking)
             }
             Delegate::Dispatch(ref mut db) => {
                 info!("delegate poll to DispatchBlocking");
-                Pin::new(&mut *db).poll(cx)
+                let db = unsafe { Pin::new_unchecked(db) };
+                db.poll(cx)
             }
             Delegate::Permit(ref mut pf) => {
                 info!("delegate poll to BlockingPermitFuture");
-                match Pin::new(&mut *pf).poll(cx) {
+                let pf = unsafe { Pin::new_unchecked(pf) };
+                match pf.poll(cx) {
                     Poll::Pending => Poll::Pending,
                     Poll::Ready(Ok(p)) => {
                         p.enter();
@@ -268,31 +247,6 @@ fn async_block_await_semaphore() {
 }
 
 #[test]
-fn async_block_await_unlimited() {
-    log_init();
-    let task = async {
-        match blocking_permit() {
-            Ok(permit) => {
-                permit.enter();
-                info!("do some blocking stuff (permitted)");
-                Ok(42)
-            }
-            Err(IsReactorThread) => {
-                dispatch_rx(|| -> usize {
-                    info!("do some blocking stuff (dispatched)");
-                    41
-                })
-                    .await
-            }
-        }
-    };
-    maybe_register_dispatch_pool();
-    let val = futr_exec::block_on(task).expect("task success");
-    assert!(val == 41 || val == 42);
-    deregister_dispatch_pool();
-}
-
-#[test]
 fn async_block_with_macro_semaphore() {
     log_init();
     let task = async {
@@ -303,21 +257,6 @@ fn async_block_with_macro_semaphore() {
                 Ok(41)
             }
         )
-    };
-    maybe_register_dispatch_pool();
-    let val = futr_exec::block_on(task).expect("task success");
-    assert_eq!(val, 41);
-    deregister_dispatch_pool();
-}
-
-#[test]
-fn async_block_with_macro_unlimited() {
-    log_init();
-    let task = async {
-        permit_or_dispatch!(|| -> Result<usize, Canceled> {
-            info!("do some blocking stuff, here or there");
-            Ok(41)
-        })
     };
     maybe_register_dispatch_pool();
     let val = futr_exec::block_on(task).expect("task success");

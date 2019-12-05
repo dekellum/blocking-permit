@@ -3,14 +3,13 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use log::{info, debug, trace};
-
-use tokio_sync::semaphore::{Permit, Semaphore};
+use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
+use log::{info, trace};
 
 #[cfg(feature="tokio_pool")]
 use tokio_executor::threadpool as tokio_pool;
 
-use crate::{Canceled, DispatchPool, IsReactorThread};
+use crate::{Canceled, DispatchPool, IsReactorThread, Semaphore};
 
 /// A scoped permit for blocking operations. When dropped (out of scope or
 /// manually), the permit is released.
@@ -20,7 +19,7 @@ use crate::{Canceled, DispatchPool, IsReactorThread};
 #[must_use = "must call `enter` before blocking"]
 #[derive(Debug)]
 pub struct BlockingPermit<'a> {
-    permit: Option<(Permit, &'a Semaphore)>,
+    releaser: SemaphoreReleaser<'a>,
     entered: Cell<bool>
 }
 
@@ -29,37 +28,25 @@ pub struct BlockingPermit<'a> {
 #[must_use = "must be `.await`ed or polled"]
 #[derive(Debug)]
 pub struct BlockingPermitFuture<'a> {
-    semaphore: &'a Semaphore,
-    permit: Option<Permit>,
-    acquired: bool,
+    acquire: SemaphoreAcquireFuture<'a>
 }
 
 impl<'a> Future for BlockingPermitFuture<'a> {
     type Output = Result<BlockingPermit<'a>, Canceled>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
-        if self.acquired {
-            panic!("BlockingPermitFuture::poll called again after acquired");
-        }
-
-        let mut permit = self.permit.take().unwrap_or_else(Permit::new);
-        match permit.poll_acquire(cx, self.semaphore) {
-            Poll::Ready(Ok(())) => {
-                debug!("Creating BlockingPermit (semaphore)");
-                self.acquired = true;
-                Poll::Ready(Ok(BlockingPermit {
-                    permit: Some((permit, self.semaphore)),
-                    entered: Cell::new(false)
-                }))
-            }
-            Poll::Ready(Err(_)) => Poll::Ready(Err(Canceled)),
-            Poll::Pending => {
-                self.permit = Some(permit);
-                Poll::Pending
-            }
-        }
+        let acq = unsafe {
+            Pin::new_unchecked(&mut self.get_unchecked_mut().acquire)
+        };
+        match acq.poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(releaser) => Poll::Ready(Ok(BlockingPermit {
+                releaser,
+                entered: Cell::new(false)
+            })),
+       }
     }
 }
 
@@ -169,17 +156,10 @@ impl<'a> Drop for BlockingPermit<'a> {
         if entered {
             // TODO: exit_blocking_section()
         }
-        if let Some((ref mut permit, ref semaphore)) = self.permit {
-            permit.release(semaphore);
-            if entered {
-                trace!("Dropped BlockingPermit (semaphore)");
-            } else {
-                info!("Dropped BlockingPermit (semaphore) was never entered")
-            }
-        } else if entered {
-            trace!("Dropped BlockingPermit (unlimited)");
+        if entered {
+            trace!("Dropped BlockingPermit (semaphore)");
         } else {
-            info!("Dropped BlockingPermit (unlimited) was never entered")
+            info!("Dropped BlockingPermit (semaphore) was never entered")
         }
     }
 }
@@ -208,34 +188,6 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
     }
 
     Ok(BlockingPermitFuture {
-        semaphore,
-        permit: None,
-        acquired: false,
-    })
-}
-
-/// Immediately return a permit which should then be
-/// [`enter`](BlockingPermit::enter)ed to allow a blocking or "long running"
-/// operation to be performed on the current thread.
-///
-/// This variant is unconstrained by any maximum allowed number of threads. To
-/// avoid an unbounded number of blocking threads from being created, and
-/// possible resource exhaustion, use `blocking_permit_future` (with a
-/// Semaphore) or `dispatch_blocking` instead.
-///
-/// This returns an `IsReactorThread` error if the current thread can't become
-/// blocking, e.g. is a current thread runtime. This is recoverable by using
-/// [`dispatch_blocking`](crate::dispatch_blocking) instead.
-pub fn blocking_permit<'a>() -> Result<BlockingPermit<'a>, IsReactorThread>
-{
-    if DispatchPool::is_thread_registered() {
-        return Err(IsReactorThread);
-    }
-
-    debug!("Creating BlockingPermit (unlimited)");
-
-    Ok(BlockingPermit {
-        permit: None,
-        entered: Cell::new(false)
+        acquire: semaphore.acquire(1)
     })
 }

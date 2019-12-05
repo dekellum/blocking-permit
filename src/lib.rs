@@ -18,11 +18,12 @@ pub use dispatch_pool::{DispatchPool, DispatchPoolBuilder};
 pub use errors::{Canceled, IsReactorThread};
 
 pub use permit::{
-    blocking_permit,
     blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
 };
+
+pub use futures_intrusive::sync::Semaphore;
 
 #[cfg(test)]
 mod tests;

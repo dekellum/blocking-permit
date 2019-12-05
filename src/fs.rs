@@ -5,12 +5,11 @@ use std::io;
 use std::path::Path;
 
 use lazy_static::lazy_static;
-use tokio_sync::semaphore::Semaphore;
 
-use crate::permit_or_dispatch;
+use crate::{permit_or_dispatch, Semaphore};
 
 lazy_static! {
-    pub static ref BLOCKING_SET: Semaphore = Semaphore::new(1);
+    pub static ref BLOCKING_SET: Semaphore = Semaphore::new(true, 1);
 }
 
 /// Creates a new, empty directory at the provided path

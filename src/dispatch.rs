@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use tokio_sync::oneshot;
+use futures::channel::oneshot;
 
 use crate::{Canceled, DispatchPool};
 
