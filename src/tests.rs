@@ -309,7 +309,7 @@ fn test_tokio_threadpool() {
                 dispatch_or_permit!(&TEST_SET, || -> Result<usize, Canceled> {
                     info!("do some blocking stuff - {:?}",
                           std::thread::current().id());
-                    thread::sleep(Duration::from_millis(5));
+                    thread::sleep(Duration::from_millis(1));
                     Ok(41)
                 })
             }.map(|r| {
