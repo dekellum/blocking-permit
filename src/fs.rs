@@ -55,14 +55,16 @@ mod tests {
         let new_dir_2 = new_dir.clone();
 
         futr_exec::block_on(async move {
-            create_dir(new_dir).await.unwrap();
+            create_dir(new_dir)
+                .await
+                .unwrap();
         });
 
         assert!(new_dir_2.is_dir());
         deregister_dispatch_pool();
     }
 
-    #[cfg(feature="tokio_rt")]
+    #[cfg(feature="tokio_threaded")]
     #[test]
     fn dir_create_permit() {
         log_init();
@@ -73,12 +75,17 @@ mod tests {
 
         {
             let mut rt = tokio::runtime::Builder::new()
+                .num_threads(2)
+                .threaded_scheduler()
                 .build()
                 .unwrap();
 
-            rt.block_on(async move {
-                create_dir(new_dir).await.unwrap();
+            let join = rt.spawn(async move {
+                create_dir(new_dir)
+                    .await
+                    .unwrap();
             });
+            rt.block_on(join).expect("join");
         }
 
         assert!(new_dir_2.is_dir());

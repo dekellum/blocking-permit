@@ -21,6 +21,8 @@ tempfile = { version=">=3.1.0, <3.2" }
 
 [features]
 default=[]
-tokio_rt=["tokio", "tokio/rt-core"]
-tokio_threaded=["tokio_rt", "tokio/rt-threaded", "tokio/blocking"]
+tokio_threaded=[
+    "tokio",
+    "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"
+]
 current_thread=[] # testing hack

@@ -2,7 +2,6 @@ language: rust
 dist: xenial
 script:
   - 'if [ "$WITH_LOCK" != "true" ]; then cargo update; fi'
-  - 'cargo test --no-default-features'
   - 'cargo test'
   - 'cargo test --all-features'
 
