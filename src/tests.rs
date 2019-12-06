@@ -303,8 +303,9 @@ fn test_tokio_threadpool() {
         let futures: Vec<_> = (0..1000).map(|_| {
             let j = async {
                 permit_or_dispatch!(&TEST_SET, || -> Result<usize, Canceled> {
-                    info!("do some blocking stuff - {:?}", std::thread::current().id());
-                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    info!("do some blocking stuff - {:?}",
+                          std::thread::current().id());
+                    thread::sleep(Duration::from_millis(5));
                     Ok(41)
                 })
             }.map(|r| {
