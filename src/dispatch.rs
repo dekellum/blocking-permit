@@ -16,9 +16,6 @@ use crate::{Canceled, DispatchPool};
 /// previously called on the calling thread, and will panic otherwise.
 pub fn dispatch_blocking(f: Box<dyn FnOnce() + Send>)
 {
-    // TODO: Presumably with the concurrent runtime this should get queued on
-    // an existing blocking thread (instead of requiring DispatchPool to be
-    // registered for each concurrent runtime worker thread.
     DispatchPool::spawn_registered(f);
 }
 

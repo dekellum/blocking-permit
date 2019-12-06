@@ -32,6 +32,10 @@ pub struct BlockingPermitFuture<'a> {
 impl<'a> Future for BlockingPermitFuture<'a> {
     type Output = Result<BlockingPermit<'a>, Canceled>;
 
+    // Note that with this implementation, `Canceled` is never returned. For
+    // maximum future flexibilty however (like reverting to tokio's Semaphore)
+    // we keep the error type in place.
+
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
