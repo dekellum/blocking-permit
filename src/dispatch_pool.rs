@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -9,15 +8,15 @@ use log::{debug, error, trace};
 use crossbeam_channel as cbch;
 use num_cpus;
 
-/// A specialized thread pool and queue for
-/// [`dispatch_blocking`](crate::dispatch_blocking) tasks.
+/// A specialized thread pool and queue for _dispatching_ (offloading)
+/// _blocking_ (synchronous, long running) operations.
 ///
-/// This simple pool is _not_ an executor and doesn't need any "waking" or
-/// "parking" facilities. By default it uses an unbounded MPMC channel with the
-/// assumption that resource/capacity is externally constrained. Once
-/// constructed, a fixed number of threads are spawned and the instance acts as
-/// a handle to the pool. This may be inexpensively cloned for additional
-/// handles to the same pool.
+/// This simple pool is _not_ an executor and has no _waking_ facilities. By
+/// default it uses an unbounded MPMC channel with the assumption that
+/// resource/capacity is externally constrained. Once constructed, a fixed
+/// number of threads are spawned and the instance acts as a handle to the
+/// pool. This may be inexpensively cloned for additional handles to the same
+/// pool.
 #[derive(Clone)]
 pub struct DispatchPool {
     sender: Arc<Sender>,
@@ -49,8 +48,6 @@ enum Work {
     SafeUnit(Box<dyn FnOnce() + Send>),
     Terminate,
 }
-
-thread_local!(static POOL: RefCell<Option<DispatchPool>> = RefCell::new(None));
 
 impl DispatchPool {
     /// Create new pool using defaults.
@@ -89,40 +86,6 @@ impl DispatchPool {
             }
             Ok(()) => {}
         }
-    }
-
-    /// Register self as a thread local pool instance. Any prior instance is
-    /// returned.
-    ///
-    /// This consumes self (by value). Self may be cloned beforehand to
-    /// preserve an owned handle.
-    pub fn register_thread_local(self) -> Option<DispatchPool> {
-        POOL.with(|p| p.replace(Some(self)))
-    }
-
-    /// Deregister and return any thread local pool instance.
-    pub fn deregister() -> Option<DispatchPool> {
-        POOL.with(|p| p.replace(None))
-    }
-
-    /// Return true if a DispatchPool is registered to the current thread.
-    pub fn is_thread_registered() -> bool {
-        POOL.with(|p| p.borrow().is_some())
-    }
-
-    /// Enqueue a new blocking operation closure on the thread local registered
-    /// pool, returning immediately.
-    ///
-    /// ## Panics
-    ///
-    /// Panics if no thread pool is registered, e.g. if
-    /// [`DispatchPool::is_thread_registered`] would return false.
-    pub fn spawn_registered(f: Box<dyn FnOnce() + Send>) {
-        POOL.with(|p| {
-            p.borrow().as_ref()
-                .expect("no thread local BlockingPool was registered")
-                .spawn(f)
-        });
     }
 }
 

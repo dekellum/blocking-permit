@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -6,49 +7,102 @@ use futures::channel::oneshot;
 
 use crate::{Canceled, DispatchPool};
 
-/// Dispatch a blocking operation in a closure to a non-reactor thread.
+thread_local!(static POOL: RefCell<Option<DispatchPool>> = RefCell::new(None));
+
+/// Register a thread local pool instance. Any prior instance is returned.
 ///
-/// Note that [`dispatch_rx`] may be used to obtain the return value.
-///
-/// ## Panics
-///
-/// Currently this relies on [`DispatchPool::register_thread_local`] to have been
-/// previously called on the calling thread, and will panic otherwise.
-pub fn dispatch_blocking(f: Box<dyn FnOnce() + Send>)
-{
-    DispatchPool::spawn_registered(f);
+/// This consumes pool by value, but it can be cloned beforehand to preserve an
+/// owned handle.
+pub fn register_dispatch_pool(pool: DispatchPool) -> Option<DispatchPool> {
+    POOL.with(|p| p.replace(Some(pool)))
 }
 
-/// Dispatch a blocking operation in a closure via [`dispatch_blocking`], and
-/// return a future representing its return value.
+/// Deregister and return any thread local pool instance.
+pub fn deregister_dispatch_pool() -> Option<DispatchPool> {
+    POOL.with(|p| p.replace(None))
+}
+
+/// Return true if a DispatchPool is registered to the current thread.
+pub fn is_dispatch_pool_registered() -> bool {
+    POOL.with(|p| p.borrow().is_some())
+}
+
+/// Dispatch a blocking operation closure to a pool, if registered.
 ///
-/// This returns the `DispatchBlocking<T>` type, where T is the return type of
-/// the closure.
+/// If a pool has been registered via [`register_dispatch_pool`], then the
+/// closure is spawned on the pool and this returns `None`. Otherwise the
+/// original closure is returned.
 ///
-/// ## Panics
+/// Alternatively [`dispatch_rx`] may be used to await and obtain a return
+/// value from the closure.
+pub fn dispatch<F>(f: F) -> Option<F>
+    where F: FnOnce() + Send + 'static
+{
+    POOL.with(|p| {
+        if let Some(pool) = p.borrow().as_ref() {
+            pool.spawn(Box::new(f));
+            None
+        } else {
+            Some(f)
+        }
+    })
+}
+
+/// Value returned by [`dispatch_rx`].
+pub enum DispatchRx<F, T> {
+    Dispatch(Dispatched<T>),
+    NotRegistered(F),
+}
+
+impl<F, T> DispatchRx<F, T> {
+    /// Unwrap to the contained `Dispatched` future.
+    ///
+    /// ## Panics
+    /// Panics if `NotRegistered`.
+    pub fn unwrap(self) -> Dispatched<T> {
+        match self {
+            DispatchRx::Dispatch(disp) => disp,
+            DispatchRx::NotRegistered(_) => {
+                panic!("no BlockingPool was registered for this thread")
+            }
+        }
+    }
+}
+
+/// Dispatch a blocking operation closure to a registered pool, returning
+/// a future for awaiting the result.
 ///
-/// Currently this relies on [`DispatchPool::register_thread_local`] to have been
-/// previously called on the calling thread, and will panic otherwise.
-pub fn dispatch_rx<F, T>(f: F) -> DispatchBlocking<T>
+/// If a pool has been registered via [`register_dispatch_pool`], then the
+/// closure is spawned on the pool, and this returns a `Dispatched` future,
+/// which resolves to the result of the closure. Otherwise the original closure
+/// is returned.
+pub fn dispatch_rx<F, T>(f: F) -> DispatchRx<F, T>
     where F: FnOnce() -> T + Send + 'static,
           T: Send + 'static
 {
-    let (tx, rx) = oneshot::channel();
-    dispatch_blocking(Box::new(|| {
-        tx.send(f()).ok();
-    }));
-
-    DispatchBlocking(rx)
+    POOL.with(|p| {
+        if let Some(pool) = p.borrow().as_ref() {
+            let (tx, rx) = oneshot::channel();
+            pool.spawn(Box::new(|| {
+                tx.send(f()).ok();
+            }));
+            DispatchRx::Dispatch(Dispatched(rx))
+        } else {
+            DispatchRx::NotRegistered(f)
+        }
+    })
 }
 
 /// A future type created by [`dispatch_rx`].
 #[derive(Debug)]
-pub struct DispatchBlocking<T>(oneshot::Receiver<T>);
+pub struct Dispatched<T>(oneshot::Receiver<T>);
 
-impl<T> Future for DispatchBlocking<T> {
+impl<T> Future for Dispatched<T> {
     type Output = Result<T, Canceled>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
+        -> Poll<Self::Output>
+    {
         match Future::poll(Pin::new(&mut self.0), cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(Ok(v)) => Poll::Ready(Ok(v)),

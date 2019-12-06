@@ -1,35 +1,39 @@
-/// Attempt to obtain a permit for a blocking operation on thread, or
-/// otherwise dispatch.
+/// Attempt to dispatch a blocking operation, or otherwise obtain a permit and
+/// run on thread, returning the result of the closure.
 ///
-/// Helper macro for use in the context of an `async` block or function,
-/// running a closure in thread if [`blocking_permit_future`] (or
-/// [`blocking_permit`]) succeeds, or via [`dispatch_rx`], if
-/// [`IsReactorThread`] is returned.
+/// This helper macro is intended for use in the context of an `async` block or
+/// function. It first attempts to dispatch the closure via [`dispatch_rx`] and
+/// await. If a dispatch pool is not registered on the current thread, it
+/// instead obtains a permit via [`blocking_permit_future`] and awaits.  If the
+/// _tokio_threaded_ feature is enabled, it will then run the closure via
+/// [`BlockingPermit::run`]. Otherwise it will run the closure directly.
 ///
 /// ## Usage
 ///
-/// First calls [`blocking_permit_future`] with the given semaphore, and awaits
-/// a permit.  The closure argument is for the blocking operation, which should
-/// return a `Result<T, E>` where `From<Canceled>` is implemented for type
-/// E. The return type of the closure may be annotated as necessary. The
-/// closure may also be a `move` closure.
+/// The closure should return a `Result<T, E>` where `From<Canceled>` is
+/// implemented for type E. The return type of the closure may be annotated as
+/// necessary. The closure may also be a `move` closure.
 ///
 /// ```rust no_compile no_run
-/// permit_or_dispatch!(&semaphore, || { /*.. blocking code..*/ });
+/// async {
+///     dispatch_or_permit!(&semaphore, move || { /*.. blocking code..*/ });
+/// }
 /// ```
-#[macro_export] macro_rules! permit_or_dispatch {
+#[macro_export] macro_rules! dispatch_or_permit {
     ($semaphore:expr, $closure:expr) => {{
-        let closure = $closure;
-        if $crate::DispatchPool::is_thread_registered() {
-            $crate::dispatch_rx(closure) .await?
-        } else {
-            let permit = $crate::blocking_permit_future($semaphore) .await?;
-            #[cfg(not(feature="tokio_threaded"))] {
-                permit.enter();
-                closure()
+        match $crate::dispatch_rx($closure) {
+            $crate::DispatchRx::Dispatch(disp) => {
+                disp .await?
             }
-            #[cfg(feature="tokio_threaded")] {
-                permit.run(closure)
+            $crate::DispatchRx::NotRegistered(cl) => {
+                let permit = $crate::blocking_permit_future($semaphore) .await?;
+                #[cfg(not(feature="tokio_threaded"))] {
+                    permit.enter();
+                    cl()
+                }
+                #[cfg(feature="tokio_threaded")] {
+                    permit.run(cl)
+                }
             }
         }
     }};

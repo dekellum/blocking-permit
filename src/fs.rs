@@ -6,7 +6,7 @@ use std::path::Path;
 
 use lazy_static::lazy_static;
 
-use crate::{permit_or_dispatch, Semaphore};
+use crate::{dispatch_or_permit, Semaphore};
 
 lazy_static! {
     pub static ref BLOCKING_SET: Semaphore = Semaphore::new(true, 1);
@@ -19,7 +19,7 @@ lazy_static! {
 /// [std]: https://doc.rust-lang.org/std/fs/fn.create_dir.html
 async fn create_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let path = path.as_ref().to_path_buf();
-    permit_or_dispatch!(&BLOCKING_SET, move || fs::create_dir(&path))
+    dispatch_or_permit!(&BLOCKING_SET, move || fs::create_dir(&path))
 }
 
 #[cfg(test)]
@@ -27,7 +27,7 @@ mod tests {
     use futures::executor as futr_exec;
     use tempfile::tempdir;
 
-    use crate::DispatchPool;
+    use crate::{deregister_dispatch_pool, DispatchPool};
 
     use super::*;
 
@@ -35,11 +35,7 @@ mod tests {
         let pool = DispatchPool::builder()
             .pool_size(2)
             .create();
-        DispatchPool::register_thread_local(pool);
-    }
-
-    fn deregister_dispatch_pool() {
-        DispatchPool::deregister();
+        crate::register_dispatch_pool(pool);
     }
 
     fn log_init() {

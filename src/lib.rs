@@ -11,7 +11,15 @@ mod permit;
 
 #[macro_use] mod macros;
 
-pub use dispatch::{dispatch_blocking, dispatch_rx, DispatchBlocking};
+pub use dispatch::{
+    dispatch,
+    dispatch_rx,
+    is_dispatch_pool_registered,
+    register_dispatch_pool,
+    deregister_dispatch_pool,
+    Dispatched,
+    DispatchRx,
+};
 
 pub use dispatch_pool::{DispatchPool, DispatchPoolBuilder};
 

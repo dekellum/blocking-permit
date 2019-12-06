@@ -3,7 +3,7 @@ use std::io;
 
 /// Error type returned as output from the
 /// [`BlockingPermitFuture`](crate::BlockingPermitFuture) or
-/// [`DispatchBlocking`](crate::DispatchBlocking) futures if they are canceled.
+/// [`Dispatched`](crate::Dispatched) futures if they are canceled.
 ///
 /// This only occurs if the associated `Semaphore` is closed or `DispatchPool`
 /// is dropped, respectively.
