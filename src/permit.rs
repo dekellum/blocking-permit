@@ -7,7 +7,7 @@ use futures::future::FusedFuture;
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
 use log::{info, trace};
 
-use crate::{Canceled, DispatchPool, IsReactorThread, Semaphore};
+use crate::{Canceled, Semaphore};
 
 /// A scoped permit for blocking operations. When dropped (out of scope or
 /// manually), the permit is released.
@@ -85,8 +85,7 @@ impl<'a> BlockingPermit<'a> {
     ///
     /// ## Panics
     ///
-    /// Panics if this `BlockingPermit` has already been entered (via `enter`
-    /// or `run`*).
+    /// Panics if this `BlockingPermit` has already been entered.
     #[cfg(feature="tokio_threaded")]
     pub fn run<F, T>(&self, f: F) -> T
         where F: FnOnce() -> T
@@ -112,24 +111,14 @@ impl<'a> Drop for BlockingPermit<'a> {
 ///
 /// The returned future attempts to obtain a permit from the provided
 /// `Semaphore` and outputs a `BlockingPermit` which can then be
-/// [`enter`](BlockingPermit::enter)ed to allow blocking or "long running"
+/// [`run`](BlockingPermit::run) to allow blocking or "long running"
 /// operation, while the `BlockingPermit` remains in scope. If no permits are
 /// immediately available, then the current task context will be notified when
 /// one becomes available.
-///
-/// This returns an `IsReactorThread` error if the calling thread can't or
-/// shouldn't become blocking, e.g. is a current thread runtime or is otherwise
-/// registered to use a `DispatchPool`. This is recoverable by using
-/// [`dispatch_blocking`](crate::dispatch_blocking) instead.
 pub fn blocking_permit_future(semaphore: &Semaphore)
-    -> Result<BlockingPermitFuture<'_>, IsReactorThread>
+    -> BlockingPermitFuture<'_>
 {
-    // FIXME: Entirely decouple this?
-    if DispatchPool::is_thread_registered() {
-        return Err(IsReactorThread);
-    }
-
-    Ok(BlockingPermitFuture {
+    BlockingPermitFuture {
         acquire: semaphore.acquire(1)
-    })
+    }
 }

@@ -1,4 +1,4 @@
-//! Experimental [`BlockingPermit`] and future, and an alternative
+//! [`BlockingPermit`] and future, and an alternative
 //! [`DispatchPool`] for enabling blocking operations on all types of
 //! executors.
 
@@ -15,7 +15,7 @@ pub use dispatch::{dispatch_blocking, dispatch_rx, DispatchBlocking};
 
 pub use dispatch_pool::{DispatchPool, DispatchPoolBuilder};
 
-pub use errors::{Canceled, IsReactorThread};
+pub use errors::Canceled;
 
 pub use permit::{
     blocking_permit_future,

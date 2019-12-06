@@ -165,20 +165,18 @@ impl<'a> Future for TestFuture<'a> {
         let this = unsafe { self.get_unchecked_mut() };
         match this.delegate {
             Delegate::None => {
-                match blocking_permit_future(&TEST_SET) {
-                    Err(IsReactorThread) => {
-                        let s = "dispatched S".to_owned();
-                        this.delegate = Delegate::Dispatch(
-                            dispatch_rx(move || -> usize {
-                                info!("do some blocking stuff ({})", s);
-                                thread::sleep(Duration::from_millis(100));
-                                42
-                            })
-                        );
-                    },
-                    Ok(f) => {
-                        this.delegate = Delegate::Permit(f);
-                    }
+                if DispatchPool::is_thread_registered() {
+                    let s = "dispatched S".to_owned();
+                    this.delegate = Delegate::Dispatch(
+                        dispatch_rx(move || -> usize {
+                            info!("do some blocking stuff ({})", s);
+                            thread::sleep(Duration::from_millis(100));
+                            42
+                        })
+                    );
+                } else {
+                    let f = blocking_permit_future(&TEST_SET);
+                    this.delegate = Delegate::Permit(f);
                 }
                 let s = unsafe { Pin::new_unchecked(this) };
                 s.poll(cx) // recurse once, with delegate in place
@@ -221,22 +219,19 @@ fn async_block_await_semaphore() {
     // Note how async/await makes this a lot nicer than the above
     // `TestFuture` manual way.
     let task = async {
-        match blocking_permit_future(&TEST_SET) {
-            Err(IsReactorThread) => {
-                let mut _i = 0;
-                dispatch_rx(move || -> usize {
-                    info!("do some blocking stuff (dispatched)");
-                    _i = 1;
-                    41
-                })
-                    .await
-            }
-            Ok(f) => {
-                let permit = f .await?;
-                permit.enter();
-                info!("do some blocking stuff (permitted)");
-                Ok(42)
-            }
+        if DispatchPool::is_thread_registered() {
+            let mut _i = 0;
+            dispatch_rx(move || -> usize {
+                info!("do some blocking stuff (dispatched)");
+                _i = 1;
+                41
+            })
+                .await
+        } else {
+            let permit = blocking_permit_future(&TEST_SET) .await?;
+            permit.enter();
+            info!("do some blocking stuff (permitted)");
+            Ok(42)
         }
     };
     maybe_register_dispatch_pool();
@@ -307,13 +302,13 @@ fn test_tokio_threadpool() {
 
         let futures: Vec<_> = (0..1000).map(|_| {
             let j = async {
-                permit_run_or_dispatch!(&TEST_SET, || -> Result<usize, Canceled> {
+                permit_or_dispatch!(&TEST_SET, || -> Result<usize, Canceled> {
                     info!("do some blocking stuff - {:?}", std::thread::current().id());
                     std::thread::sleep(std::time::Duration::from_millis(5));
                     Ok(41)
                 })
             }.map(|r| {
-                assert_eq!(41, r.expect("permit_run_or_dispatch future"));
+                assert_eq!(41, r.expect("permit_or_dispatch future"));
                 FINISHED.fetch_add(1, Ordering::SeqCst);
                 ()
             });
