@@ -13,9 +13,6 @@ use futures::task::SpawnExt;
 use lazy_static::lazy_static;
 use log::{debug, info};
 
-#[cfg(feature="tokio_pool")]
-use tokio_executor::threadpool as tokio_pool;
-
 use crate::*;
 
 lazy_static! {
@@ -31,8 +28,7 @@ fn is_unwind_safe<T: UnwindSafe>() -> bool { true }
 fn test_blocking_permit_traits() {
     assert!(is_send::<BlockingPermit<'_>>());
 
-    // TODO: its not UnwindSafe because `semaphore::Permit` is not.  Does
-    // it need to be?
+    // TODO: its not UnwindSafe because internals are not.  Does it need to be?
     // assert!(is_unwind_safe::<BlockingPermit<'_>>());
 }
 
@@ -293,32 +289,38 @@ fn test_futr_local_pool() {
     deregister_dispatch_pool();
 }
 
-#[cfg(feature="tokio_pool")]
+#[cfg(feature="tokio_threaded")]
 #[test]
 fn test_tokio_threadpool() {
     log_init();
     lazy_static! {
-        static ref TEST_SET: Semaphore = Semaphore::new(3);
+        static ref TEST_SET: Semaphore = Semaphore::new(true, 3);
     }
     static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
-    let rt = tokio_pool::Builder::new()
-        .pool_size(7)
-        .max_blocking(32768-7)
-        .build();
+    {
+        let mut rt = tokio::runtime::Builder::new()
+            .num_threads(3)
+            .threaded_scheduler()
+            .build()
+            .unwrap();
 
-    for _ in 0..1000 {
-        rt.spawn(async {
-            permit_run_or_dispatch!(&TEST_SET, || -> Result<usize, Canceled> {
-                info!("do some blocking stuff, here or there");
-                Ok(41)
-            })
-        }.map(|r| {
-            assert_eq!(41, r.expect("permit_run_or_dispatch future"));
-            FINISHED.fetch_add(1, Ordering::SeqCst);
-            ()
-        }));
+        let futures: Vec<_> = (0..1000).map(|_| {
+            let j = async {
+                permit_run_or_dispatch!(&TEST_SET, || -> Result<usize, Canceled> {
+                    info!("do some blocking stuff - {:?}", std::thread::current().id());
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    Ok(41)
+                })
+            }.map(|r| {
+                assert_eq!(41, r.expect("permit_run_or_dispatch future"));
+                FINISHED.fetch_add(1, Ordering::SeqCst);
+                ()
+            });
+            rt.spawn(j) // -> JoinHandle (future)
+        }).collect();
+
+        rt.block_on(futures::future::join_all(futures));
     }
-    rt.shutdown_on_idle().wait();
     assert_eq!(1000, FINISHED.load(Ordering::SeqCst));
 }

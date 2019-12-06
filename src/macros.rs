@@ -48,16 +48,16 @@
 /// [`IsReactorThread`] is returned.
 ///
 /// This variant is for the tokio concurrent runtime (`ThreadPool`) in its
-/// current state, where [`BlockingPermit::run_unwrap`] must be used, and will
+/// current state, where [`BlockingPermit::run`] must be used, and will
 /// eventually be deprecated.
-#[cfg(feature="tokio_pool")]
+#[cfg(feature="tokio_threaded")]
 #[macro_export] macro_rules! permit_run_or_dispatch {
     ($semaphore:expr, $closure:expr) => {{
         let closure = $closure;
         match $crate::blocking_permit_future($semaphore) {
             Ok(f) => {
                 let permit = f .await?;
-                permit.run_unwrap(closure)
+                permit.run(closure)
             }
             Err($crate::IsReactorThread) => {
                 $crate::dispatch_rx(closure) .await?

@@ -27,9 +27,6 @@ mod tests {
     use futures::executor as futr_exec;
     use tempfile::tempdir;
 
-    #[cfg(feature="tokio_pool")]
-    use tokio_executor::threadpool as tokio_pool;
-
     use crate::DispatchPool;
 
     use super::*;
@@ -65,24 +62,25 @@ mod tests {
         deregister_dispatch_pool();
     }
 
-    #[cfg(feature="tokio_pool")]
+    #[cfg(feature="tokio_rt")]
     #[test]
     fn dir_create_permit() {
         log_init();
-        let rt = tokio_pool::Builder::new()
-            .pool_size(1)
-            .max_blocking(100)
-            .build();
 
         let base_dir = tempdir().unwrap();
         let new_dir = base_dir.path().join("test");
         let new_dir_2 = new_dir.clone();
 
-        rt.spawn(async move {
-            create_dir(new_dir).await.unwrap();
-        });
+        {
+            let mut rt = tokio::runtime::Builder::new()
+                .build()
+                .unwrap();
 
-        rt.shutdown_on_idle().wait();
+            rt.block_on(async move {
+                create_dir(new_dir).await.unwrap();
+            });
+        }
+
         assert!(new_dir_2.is_dir());
     }
 }

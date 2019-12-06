@@ -7,9 +7,6 @@ use futures::future::FusedFuture;
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
 use log::{info, trace};
 
-#[cfg(feature="tokio_pool")]
-use tokio_executor::threadpool as tokio_pool;
-
 use crate::{Canceled, DispatchPool, IsReactorThread, Semaphore};
 
 /// A scoped permit for blocking operations. When dropped (out of scope or
@@ -62,110 +59,48 @@ impl<'a> FusedFuture for BlockingPermitFuture<'a> {
 impl<'a> BlockingPermit<'a> {
     /// Enter the blocking section of code on the current thread.
     ///
-    /// This is a required secondary step from the [`BlockingPermitFuture`],
-    /// and for consistency the [`blocking_permit`] call, because it _must_ be
-    /// performed on the same thread, immediately before the blocking section.
-    /// The blocking permit should then be dropped at the end of the blocking
-    /// section.
+    /// This is a required secondary step from completion of the
+    /// [`BlockingPermitFuture`] as it _must_ be performed on the same thread,
+    /// immediately before the blocking section.  The blocking permit should
+    /// then be dropped at the end of the blocking section.
     ///
     /// ## TODO
     ///
-    /// This currently awaits access to a
-    /// `tokio_executor::threadpool::enter_blocking_section` function or
-    /// similar, until then use the `run` or `run_unwrap` methods which takes a
-    /// closure.
+    /// Currently this only used for internal testing to mimimally satisfy an
+    /// enter. As yet unclear if it should be retained and ultimately exported.
     ///
     /// ## Panics
     ///
     /// Panics if this `BlockingPermit` has already been entered.
-    pub fn enter(&self) {
-        if !self.entered.replace(true) {
-            // TODO: enter_blocking_section()
-        } else {
+    #[cfg(test)]
+    pub(crate) fn enter(&self) {
+        if self.entered.replace(true) {
             panic!("BlockingPermit::enter (or run) called twice!");
         }
     }
 
-    // TODO: provide manual (ahead of drop) exit(), if also desired?
-
     /// Enter and run the blocking closure.
     ///
-    /// This wraps the "legacy" `tokio_executor::threadpool::blocking` call
-    /// with the same return value.  A caller may wish to panic (see
-    /// [`run_unwrap`](BlockingPermit::run_unwrap) or propigate as an error,
-    /// any result other than `Ready(Ok(T))`, for example:
-    ///
-    /// * `Poll::Pending` can be avoided if the tokio `ThreadPool` is
-    ///    configured with `max_blocking` set greater than the sum of all
-    ///    semaphore permits in use.  Setting `max_blocking` to 32768 minus the
-    ///    pool size works currently.
-    ///
-    /// * `Poll::Ready(Err(BlockError))` occurs if the current thread is not a
-    ///   Tokio concurrent `ThreadPool` worker. Don't do that! Use
-    ///   `dispatch_blocking` instead.
-    ///
-    /// ## TODO
-    ///
-    /// Once tokio-threadpool is updated, this will be deprecated and emulated,
-    /// then removed in favor of [`enter`](BlockingPermit::enter).
+    /// This wraps the `tokio::task::block_in_place` call.
     ///
     /// ## Panics
     ///
     /// Panics if this `BlockingPermit` has already been entered (via `enter`
     /// or `run`*).
-    #[cfg(feature="tokio_pool")]
-    pub fn run<F, T>(&self, f: F)
-        -> Poll<Result<T, tokio_pool::BlockingError>>
+    #[cfg(feature="tokio_threaded")]
+    pub fn run<F, T>(&self, f: F) -> T
         where F: FnOnce() -> T
     {
         if self.entered.replace(true) {
             panic!("BlockingPermit::run (or enter) called twice!");
         }
-        tokio_pool::blocking(f)
-    }
-
-    /// Enter and run the blocking closure, with confidence.
-    ///
-    /// This wraps the "legacy" `tokio_executor::threadpool::blocking`, unwraps
-    /// and returns the value `v` of `Poll::Ready(Ok(v))`, type T, or panics on
-    /// other returns.
-    ///
-    /// ## TODO
-    ///
-    /// Once tokio-threadpool is updated, this will be deprecated and
-    /// emulated, then removed in favor of [`enter`](BlockingPermit::enter).
-    ///
-    /// ## Panics
-    ///
-    /// Panics on non-success returns. See [`run`](BlockingPermit::run) for
-    /// ways to avoid these panics.
-    ///
-    /// Panics if this `BlockingPermit` has already been entered (via `enter`
-    /// or `run`*).
-    #[cfg(feature="tokio_pool")]
-    pub fn run_unwrap<F, T>(&self, f: F) -> T
-        where F: FnOnce() -> T
-    {
-        match self.run(f) {
-            Poll::Ready(Ok(v)) => v,
-            Poll::Ready(Err(e)) => {
-                panic!("permit misused: {}", e)
-            }
-            Poll::Pending => {
-                panic!("set tokio_threadpool max_blocking higher,\
-                        or semaphore permits lower!")
-            }
-        }
+        tokio::task::block_in_place(f)
     }
 }
 
 impl<'a> Drop for BlockingPermit<'a> {
     fn drop(&mut self) {
-        let entered = self.entered.get();
-        if entered {
-            // TODO: exit_blocking_section()
-        }
-        if entered {
+        if self.entered.get() {
             trace!("Dropped BlockingPermit (semaphore)");
         } else {
             info!("Dropped BlockingPermit (semaphore) was never entered")
@@ -182,9 +117,6 @@ impl<'a> Drop for BlockingPermit<'a> {
 /// immediately available, then the current task context will be notified when
 /// one becomes available.
 ///
-/// If the number of blocking threads need not be constrained by a `Semaphore`,
-/// then this operation can be short circuited via [`blocking_permit`].
-///
 /// This returns an `IsReactorThread` error if the calling thread can't or
 /// shouldn't become blocking, e.g. is a current thread runtime or is otherwise
 /// registered to use a `DispatchPool`. This is recoverable by using
@@ -192,6 +124,7 @@ impl<'a> Drop for BlockingPermit<'a> {
 pub fn blocking_permit_future(semaphore: &Semaphore)
     -> Result<BlockingPermitFuture<'_>, IsReactorThread>
 {
+    // FIXME: Entirely decouple this?
     if DispatchPool::is_thread_registered() {
         return Err(IsReactorThread);
     }
