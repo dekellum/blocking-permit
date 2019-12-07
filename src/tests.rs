@@ -54,7 +54,13 @@ fn maybe_register_dispatch_pool() {
 #[test]
 fn dispatch_panic_returns_canceled() {
     log_init();
-    register_dispatch_pool();
+    let pool = DispatchPool::builder()
+        .pool_size(1)
+        .catch_unwind(true)
+        .after_start(|i| debug!("starting DispatchPool thread {}", i))
+        .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
+        .create();
+    crate::register_dispatch_pool(pool);
 
     let task = dispatch_rx(|| {
         debug!("about to panic");
@@ -117,13 +123,14 @@ fn survives_dispatch_panic_catch_unwind() {
     deregister_dispatch_pool();
 }
 
+#[cfg(feature="impossible_abort_test")]
 #[test]
-fn survives_dispatch_panic_ql0() {
+fn aborts_dispatch_panic() {
     log_init();
     let pool = DispatchPool::builder()
         .pool_size(1)
         .queue_length(0)
-        .catch_unwind(false)
+        .catch_unwind(false) // will abort
         .after_start(|i| debug!("starting DispatchPool thread {}", i))
         .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
         .create();

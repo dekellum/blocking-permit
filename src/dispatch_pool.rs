@@ -8,15 +8,18 @@ use log::{debug, error, trace};
 use crossbeam_channel as cbch;
 use num_cpus;
 
-/// A specialized thread pool and queue for _dispatching_ (offloading)
+/// A specialized thread pool and queue for dispatching (offloading, spawning)
 /// _blocking_ (synchronous, long running) operations.
 ///
-/// This simple pool is _not_ an executor and has no _waking_ facilities. By
-/// default it uses an unbounded MPMC channel with the assumption that
+/// This pool is not an _executor_, has no _waking_ facilities, etc. By default
+/// it uses an unbounded MPMC channel with the assumption that
 /// resource/capacity is externally constrained. Once constructed, a fixed
 /// number of threads are spawned and the instance acts as a handle to the
 /// pool. This may be inexpensively cloned for additional handles to the same
 /// pool.
+///
+/// See [`DispatchPoolBuilder`] for an extensive set of options, some of which
+/// are more appropriate for testing than production use.
 #[derive(Clone)]
 pub struct DispatchPool {
     sender: Arc<Sender>,
@@ -136,7 +139,7 @@ fn work(
         loop {
             match rx.recv() {
                 Ok(Work::Count) => ts.increment(),
-                Ok(Work::Unit(bfn)) => bfn(),
+                Ok(Work::Unit(bfn)) => abort_on_panic(bfn),
                 Ok(Work::SafeUnit(bfn)) => {
                     if catch_unwind(AssertUnwindSafe(bfn)).is_err() {
                         error!("DispatchPool: panic was caught, ignored");
@@ -146,6 +149,23 @@ fn work(
             }
         }
     }
+}
+
+fn abort_on_panic<T>(f: impl FnOnce() -> T) -> T {
+    struct Bomb;
+
+    impl Drop for Bomb {
+        fn drop(&mut self) {
+            error!("DispatchPool: aborting on panic in dispatch thread");
+            log::logger().flush();
+            std::process::abort();
+        }
+    }
+
+    let bomb = Bomb;
+    let t = f();
+    std::mem::forget(bomb);
+    t
 }
 
 impl Default for DispatchPool {
@@ -166,7 +186,7 @@ impl Drop for Sender {
             }
             terms += 1;
         }
-        // This intentionally only yields a number of times equivelent to the
+        // This intentionally only yields a number of times equivalent to the
         // termination messages sent, to avoid any risk of hanging.
         for _ in 0..terms {
             let size = self.counter.load(Ordering::SeqCst);
@@ -198,7 +218,7 @@ impl DispatchPoolBuilder {
             name_prefix: None,
             after_start: None,
             before_stop: None,
-            catch_unwind: true
+            catch_unwind: false,
         }
     }
 
@@ -231,10 +251,15 @@ impl DispatchPoolBuilder {
 
     /// Set whether to catch unwinds for dispatch tasks that panic.
     ///
-    /// If set false, dispatch pool threads will terminate on panic unwind, and
-    /// currently they are not re-spawned.
+    /// As this option is set at runtime, note that when true, the unwind
+    /// safety of dispatched tasks is not theoretically/optimistically
+    /// validated via the `UnwindSafe` marker trait and thus may later result
+    /// in UB.
     ///
-    /// Default: true
+    /// If false, a panic in a dispatch pool thread will result in process
+    /// abort.
+    ///
+    /// Default: false
     pub fn catch_unwind(&mut self, do_catch: bool) -> &mut Self {
         self.catch_unwind = do_catch;
         self
