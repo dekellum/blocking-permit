@@ -42,6 +42,7 @@ fn register_dispatch_pool() {
         .after_start(|i| debug!("starting DispatchPool thread {}", i))
         .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
         .create();
+    debug!("default pool: {:?}", pool);
     crate::register_dispatch_pool(pool);
 }
 
@@ -56,10 +57,11 @@ fn dispatch_panic_returns_canceled() {
     log_init();
     let pool = DispatchPool::builder()
         .pool_size(1)
-        .catch_unwind(true)
+        .ignore_panics(true)
         .after_start(|i| debug!("starting DispatchPool thread {}", i))
         .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
         .create();
+    debug!("pool: {:?}", pool);
     crate::register_dispatch_pool(pool);
 
     let task = dispatch_rx(|| {
@@ -112,10 +114,28 @@ fn survives_dispatch_panic_catch_unwind() {
     log_init();
     let pool = DispatchPool::builder()
         .pool_size(1)
-        .catch_unwind(true)
+        .ignore_panics(true)
         .after_start(|i| debug!("starting DispatchPool thread {}", i))
         .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
         .create();
+    debug!("pool: {:?}", pool);
+    crate::register_dispatch_pool(pool);
+
+    spawn_good_and_bad_tasks();
+
+    deregister_dispatch_pool();
+}
+
+#[test]
+fn survives_dispatch_panic_catch_unwind_on_caller() {
+    log_init();
+    let pool = DispatchPool::builder()
+        .pool_size(0)
+        .ignore_panics(true)
+        .after_start(|i| debug!("starting DispatchPool thread {}", i))
+        .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
+        .create();
+    debug!("pool: {:?}", pool);
     crate::register_dispatch_pool(pool);
 
     spawn_good_and_bad_tasks();
@@ -130,10 +150,11 @@ fn aborts_dispatch_panic() {
     let pool = DispatchPool::builder()
         .pool_size(1)
         .queue_length(0)
-        .catch_unwind(false) // will abort
+        .ignore_panics(false) // will abort
         .after_start(|i| debug!("starting DispatchPool thread {}", i))
         .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
         .create();
+    debug!("pool: {:?}", pool);
     crate::register_dispatch_pool(pool);
 
     spawn_good_and_bad_tasks();

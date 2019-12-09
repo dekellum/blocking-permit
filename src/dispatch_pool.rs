@@ -23,8 +23,7 @@ use num_cpus;
 #[derive(Clone)]
 pub struct DispatchPool {
     sender: Arc<Sender>,
-    catch_unwind: bool,
-    run_on_caller: bool
+    ignore_panics: bool,
 }
 
 #[derive(Debug)]
@@ -43,13 +42,13 @@ pub struct DispatchPoolBuilder {
     name_prefix: Option<String>,
     after_start: Option<AroundFn>,
     before_stop: Option<AroundFn>,
-    catch_unwind: bool
+    ignore_panics: bool
 }
 
 enum Work {
     Count,
     Unit(Box<dyn FnOnce() + Send>),
-    SafeUnit(Box<dyn FnOnce() + Send>),
+    SafeUnit(AssertUnwindSafe<Box<dyn FnOnce() + Send>>),
     Terminate,
 }
 
@@ -72,28 +71,41 @@ impl DispatchPool {
     /// configured with zero (pool_size) threads the task is directly run by
     /// the _calling_ thread.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
-        if self.run_on_caller {
-            f();
-            return;
-        }
-
-        let w = if self.catch_unwind {
-            Work::SafeUnit(f)
+        let work = if self.ignore_panics {
+            Work::SafeUnit(AssertUnwindSafe(f))
         } else {
             Work::Unit(f)
         };
 
-        match self.sender.tx.try_send(w) {
-            Err(cbch::TrySendError::Full(Work::Unit(f))) |
-            Err(cbch::TrySendError::Full(Work::SafeUnit(f))) => {
-                debug!("DispathPool::spawn: queue is full, \
+        let work = match self.sender.tx.try_send(work) {
+            Ok(()) => return,
+            Err(cbch::TrySendError::Disconnected(w)) => {
+                // Rx side is dropped if zero pool threads
+                // Should be expected so
+                w
+            }
+            Err(cbch::TrySendError::Full(w)) => {
+                debug!("DispathPool::spawn failed to send: full; \
                         running on calling thread!");
-                f();
+                w
             }
-            Err(e) => {
-                panic!("DispatchPool::spawn error {}", e);
+        };
+
+        // Failed to send, so run on this calling thread. Ignore panics unwinds
+        // if requested, but no need to abort otherwise (as that panic will
+        // propagate).
+        match work {
+            Work::Unit(f) => f(),
+            Work::SafeUnit(af) => {
+                if catch_unwind(af).is_err() {
+                    error!("DispatchPool: panic on calling thread \
+                            was caught and ignored");
+                }
             }
-            Ok(()) => {}
+            _ => {
+                // Safety: work is constructed above as Unit or SafeUnit only.
+                unsafe { std::hint::unreachable_unchecked() }
+            }
         }
     }
 }
@@ -121,6 +133,17 @@ impl Drop for Turnstile {
     }
 }
 
+// Aborts the process if dropped
+struct AbortOnPanic;
+
+impl Drop for AbortOnPanic {
+    fn drop(&mut self) {
+        error!("DispatchPool: aborting due to panic on dispatch thread");
+        log::logger().flush();
+        std::process::abort();
+    }
+}
+
 fn work(
     index: usize,
     counter: Arc<AtomicUsize>,
@@ -135,37 +158,34 @@ fn work(
 
     {
         let ts = Turnstile { index, counter, before_stop };
-        let rx = rx; // move here so it drops before ts.
+        let rx = rx; // moved to here so it drops before ts.
         loop {
             match rx.recv() {
-                Ok(Work::Count) => ts.increment(),
-                Ok(Work::Unit(bfn)) => abort_on_panic(bfn),
-                Ok(Work::SafeUnit(bfn)) => {
-                    if catch_unwind(AssertUnwindSafe(bfn)).is_err() {
-                        error!("DispatchPool: panic was caught, ignored");
+                Ok(Work::Count) => {
+                    ts.increment();
+                    // In startup phase. Give another thread a chance to take
+                    // the next Work::Count.
+                    thread::yield_now();
+                }
+                Ok(Work::Unit(bfn)) => {
+                    let abort = AbortOnPanic;
+                    bfn();
+                    std::mem::forget(abort);
+                }
+                Ok(Work::SafeUnit(abfn)) => {
+                    if catch_unwind(abfn).is_err() {
+                        error!("DispatchPool: panic on pool \
+                                was caught and ignored");
                     }
                 }
-                Ok(Work::Terminate) | Err(_) => break,
+                Ok(Work::Terminate) => break,
+                Err(r) => {
+                    debug_assert!(false, "DispatchPool::recv error {}", r);
+                    error!("DispatchPool::recv error {}", r);
+                }
             }
         }
     }
-}
-
-fn abort_on_panic<T>(f: impl FnOnce() -> T) -> T {
-    struct Bomb;
-
-    impl Drop for Bomb {
-        fn drop(&mut self) {
-            error!("DispatchPool: aborting on panic in dispatch thread");
-            log::logger().flush();
-            std::process::abort();
-        }
-    }
-
-    let bomb = Bomb;
-    let t = f();
-    std::mem::forget(bomb);
-    t
 }
 
 impl Default for DispatchPool {
@@ -181,7 +201,7 @@ impl Drop for Sender {
         let mut terms = 0;
         for _ in 0..threads {
             if let Err(e) = self.tx.try_send(Work::Terminate) {
-                trace!("Sender::drop on terminate send: {}", e);
+                debug!("DispatchPool::(Sender::)drop on terminate send: {}", e);
                 break;
             }
             terms += 1;
@@ -191,7 +211,8 @@ impl Drop for Sender {
         for _ in 0..terms {
             let size = self.counter.load(Ordering::SeqCst);
             if size > 0 {
-                trace!("Sender::drop yielding, pool size: {}", size);
+                trace!("DipatchPool::(Sender::)drop yielding, \
+                        pool size: {}", size);
                 thread::yield_now();
             } else {
                 break;
@@ -204,6 +225,7 @@ impl fmt::Debug for DispatchPool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DispatchPool")
             .field("threads", &self.sender.counter.load(Ordering::Relaxed))
+            .field("ignore_panics", &self.ignore_panics)
             .finish()
     }
 }
@@ -218,7 +240,7 @@ impl DispatchPoolBuilder {
             name_prefix: None,
             after_start: None,
             before_stop: None,
-            catch_unwind: false,
+            ignore_panics: false,
         }
     }
 
@@ -260,8 +282,8 @@ impl DispatchPoolBuilder {
     /// abort.
     ///
     /// Default: false
-    pub fn catch_unwind(&mut self, do_catch: bool) -> &mut Self {
-        self.catch_unwind = do_catch;
+    pub fn ignore_panics(&mut self, ignore: bool) -> &mut Self {
+        self.ignore_panics = ignore;
         self
     }
 
@@ -309,12 +331,6 @@ impl DispatchPoolBuilder {
     /// configuration.
     pub fn create(&mut self) -> DispatchPool {
 
-        let (tx, rx) = if let Some(len) = self.queue_length {
-            cbch::bounded(len)
-        } else {
-            cbch::unbounded()
-        };
-
         let pool_size = if let Some(size) = self.pool_size {
             size
         } else {
@@ -326,6 +342,15 @@ impl DispatchPoolBuilder {
                 size = 1;
             }
             size
+        };
+
+        let (tx, rx) = if pool_size == 0 {
+            // If no threads, then for safety, we also don't want to queue.
+            cbch::bounded(0)
+        } else if let Some(len) = self.queue_length {
+            cbch::bounded(len)
+        } else {
+            cbch::unbounded()
         };
 
         static POOL_CNT: AtomicUsize = AtomicUsize::new(0);
@@ -371,8 +396,7 @@ impl DispatchPoolBuilder {
 
         DispatchPool {
             sender: Arc::new(sender),
-            catch_unwind: self.catch_unwind,
-            run_on_caller: (pool_size == 0)
+            ignore_panics: self.ignore_panics,
         }
     }
 }
