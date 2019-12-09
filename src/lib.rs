@@ -31,6 +31,9 @@ pub use permit::{
     BlockingPermitFuture,
 };
 
+/// An async-aware semaphore for constraining the number of concurrent blocking
+/// operations.
+///
 pub use futures_intrusive::sync::Semaphore;
 
 #[cfg(test)]

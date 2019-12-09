@@ -8,15 +8,40 @@ use log::{debug, error, trace};
 use crossbeam_channel as cbch;
 use num_cpus;
 
-/// A specialized thread pool and queue for dispatching (offloading, spawning)
-/// _blocking_ (synchronous, long running) operations.
+/// A specialized thread pool and queue for dispatching _blocking_
+/// (synchronous, long running) operations.
 ///
-/// This pool is not an _executor_, has no _waking_ facilities, etc. By default
-/// it uses an unbounded MPMC channel with the assumption that
-/// resource/capacity is externally constrained. Once constructed, a fixed
-/// number of threads are spawned and the instance acts as a handle to the
-/// pool. This may be inexpensively cloned for additional handles to the same
-/// pool.
+/// This pool is not an _executor_, has no _waking_ facilities, etc. As
+/// compared with other thread pools supporting `spawn_dispatch` (here called
+/// just `dispatch`), for example in _tokio_ and _async-std_, this pool has
+/// some unique features:
+///
+/// * A configurable, fixed number of threads created before return from
+///   construction and terminated on `Drop::drop`.  Consistent memory
+///   footprint. No warmup required. No per-task thread management overhead.
+///
+/// * Supports configuration for all crossbeam-channel MPMC queue options
+///   including fixed (bounded), including zero capacity, or an unbounded
+///   queue.
+///
+/// * Configurable panic handling policy: Either catches and logs dispatch
+///   panics, or aborts the process, on panic unwind.
+///
+/// * For comparative testing, can also be configured with zero (0) threads.
+///
+/// * With zero threads or when the queue is bounded and becomes full,
+///   [`DispatchPool::spawn`] runs the provided task on the calling thread as a
+///   fallback.  This is entirely optional and avoided with default settings of
+///   an unbounded queue and one or more threads. Its most useful for testing
+///   and benchmarking.
+///
+/// ## Usage
+///
+/// By default, the pool uses an unbounded MPMC channel, with the assumption
+/// that resource/capacity is externally constrained, for example via
+/// [`Semaphore`](crate::Semaphore). Once constructed, a fixed number of
+/// threads are spawned and the instance acts as a handle to the pool. This may
+/// be inexpensively cloned for additional handles to the same pool.
 ///
 /// See [`DispatchPoolBuilder`] for an extensive set of options, some of which
 /// are more appropriate for testing than production use.
@@ -34,7 +59,8 @@ struct Sender {
 
 type AroundFn = Arc<dyn Fn(usize) + Send + Sync>;
 
-/// A builder for [`DispatchPool`] supporting various configuration.
+/// A builder for [`DispatchPool`] supporting an extenstive set of
+/// configuration options.
 pub struct DispatchPoolBuilder {
     pool_size: Option<usize>,
     queue_length: Option<usize>,
@@ -67,9 +93,9 @@ impl DispatchPool {
     ///
     /// This first attempts to send to the associated queue, which will always
     /// succeed if _unbounded_, e.g. no [`DispatchPoolBuilder::queue_length`]
-    /// is set, the default. If however the queue is _bounded_ or the pool is
-    /// configured with zero (pool_size) threads the task is directly run by
-    /// the _calling_ thread.
+    /// is set, the default. If however the queue is _bounded_ and at capacity,
+    /// or the pool is configured with zero (`pool_size`) threads, then the
+    /// task is directly run by the _calling_ thread.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
         let work = if self.ignore_panics {
             Work::SafeUnit(AssertUnwindSafe(f))
@@ -110,7 +136,8 @@ impl DispatchPool {
     }
 }
 
-// Guard type that decrements pool size on drop, including on abnormal unwind.
+// Guard type that can increment thread count, then on Drop: decrements count
+// and runs any before_stop function on thread.
 struct Turnstile {
     index: usize,
     counter: Arc<AtomicUsize>,
@@ -246,12 +273,23 @@ impl DispatchPoolBuilder {
 
     /// Set the fixed number of threads in the pool.
     ///
-    /// This may be zero, in which case, all tasks are executed on the
-    /// _calling thread_, see [`DispatchPool::spawn`]. This is allowed
-    /// primarly as a convenience for comparative benchmarking.
+    /// This may be zero, in which case, all tasks are executed on the _calling
+    /// thread_, see [`DispatchPool::spawn`]. This is allowed primarly as a
+    /// convenience for testing and comparative benchmarking.
     ///
-    /// Default: the number of logical CPU's, minus one, if more than
-    /// one.
+    /// Default: the number of logical CPU's minus one, but one at minimum:
+    ///
+    /// | Detected CPUs | Default Pool Size |
+    /// | -------------:| -----------------:|
+    /// |       0       |         1         |
+    /// |       1       |         1         |
+    /// |       2       |         1         |
+    /// |       3       |         2         |
+    /// |       4       |         3         |
+    ///
+    /// Detected CPUs may be influenced by simultaneous multithreading (SMT,
+    /// e.g. Intel hyper-threading) or scheduler affinity. Zero (0) detected
+    /// CPUs is likely an error.
     pub fn pool_size(&mut self, size: usize) -> &mut Self {
         self.pool_size = Some(size);
         self
@@ -265,18 +303,21 @@ impl DispatchPoolBuilder {
     /// zero (0) is an accepted value, and guaruntees a task will be run
     /// _immediately_ by a pool thread, or the calling thread.
     ///
+    /// If pool_size is set to zero (0) threads this setting is ignored and no
+    /// queue is used.
+    ///
     /// Default: unbounded
     pub fn queue_length(&mut self, length: usize) -> &mut Self {
         self.queue_length = Some(length);
         self
     }
 
-    /// Set whether to catch unwinds for dispatch tasks that panic.
+    /// Set whether to catch and ignore unwinds for dispatch tasks that panic,
+    /// or to abort.
     ///
-    /// As this option is set at runtime, note that when true, the unwind
-    /// safety of dispatched tasks is not theoretically/optimistically
-    /// validated via the `UnwindSafe` marker trait and thus may later result
-    /// in UB.
+    /// When true, panics are ignored. Note that the unwind safety of
+    /// dispatched tasks is not well assured by the `UnwindSafe` marker trait
+    /// and may later result in undefined behavior (UB) or logic bugs.
     ///
     /// If false, a panic in a dispatch pool thread will result in process
     /// abort.

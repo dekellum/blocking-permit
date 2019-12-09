@@ -11,9 +11,6 @@ use crate::{Canceled, Semaphore};
 
 /// A scoped permit for blocking operations. When dropped (out of scope or
 /// manually), the permit is released.
-///
-/// Note that [`enter`](BlockingPermit::enter) must be called before the actual
-/// blocking begins.
 #[must_use = "must call `enter` before blocking"]
 #[derive(Debug)]
 pub struct BlockingPermit<'a> {

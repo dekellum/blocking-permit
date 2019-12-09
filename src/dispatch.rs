@@ -9,15 +9,15 @@ use crate::{Canceled, DispatchPool};
 
 thread_local!(static POOL: RefCell<Option<DispatchPool>> = RefCell::new(None));
 
-/// Register a thread local pool instance. Any prior instance is returned.
+/// Register a `DispatchPool` on the calling thread.
 ///
-/// This consumes pool by value, but it can be cloned beforehand to preserve an
-/// owned handle.
+/// Any prior instance is returned. This consumes the pool by value, but it can
+/// be cloned beforehand to preserve an owned handle.
 pub fn register_dispatch_pool(pool: DispatchPool) -> Option<DispatchPool> {
     POOL.with(|p| p.replace(Some(pool)))
 }
 
-/// Deregister and return any thread local pool instance.
+/// Deregister and return any `DispatchPool` on the current thread.
 pub fn deregister_dispatch_pool() -> Option<DispatchPool> {
     POOL.with(|p| p.replace(None))
 }
