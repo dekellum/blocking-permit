@@ -1,10 +1,17 @@
 [package]
 name = "blocking-permit"
 version = "0.1.0"
-authors = ["David Kellum <dek-oss@gravitext.com>"]
 edition = "2018"
+authors = ["David Kellum <dek-oss@gravitext.com>"]
 license       = "MIT/Apache-2.0"
-description   = "tokio blocking ergonomics prototype"
+description   = "Permits and a thread pool for blocking operations"
+documentation = "https://docs.rs/blocking-permit"
+repository    = "https://github.com/dekellum/blocking-permit"
+readme        = "README.md"
+keywords      = ["async", "semaphore", "thread"]
+categories    = ["asynchronous"]
+exclude       = [".gitignore", ".travis.yml", "appveyor.yml"]
+build         = "build.rs"
 
 [dependencies]
 futures-core        = { version=">=0.3.1, <0.4" }

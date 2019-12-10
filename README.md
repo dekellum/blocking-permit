@@ -3,12 +3,21 @@
 [![Travis CI Build](https://travis-ci.org/dekellum/blocking-permit.svg?branch=master)](https://travis-ci.org/dekellum/blocking-permit)
 [![MSRV](https://img.shields.io/badge/rustc-%E2%89%A5%201.39-orange.svg)](https://github.com/rust-lang/rust/blob/master/RELEASES.md)
 
-Experiments with enabling blocking operations on all types of executors.
+This crate provides:
 
-See:
+* A specialized, custom thread pool, `DispatchPool`, for offloading
+  blocking or otherwise long running operations from a main or reactor
+  threads.
 
-* [tokio-rs/tokio/#1177](https://github.com/tokio-rs/tokio/issues/1177)
-* [tokio-rs/tokio/#588](https://github.com/tokio-rs/tokio/issues/588)
+* A `BlockingPermit` for limiting the number of concurrent blocking operations
+  via a [`Semaphore`] type.
+
+## Minimum supported rust version
+
+MSRV := 1.39.0
+
+The crate will fail fast on any lower rustc (via a build.rs version
+check) and is also CI tested on this version.
 
 ## License
 
