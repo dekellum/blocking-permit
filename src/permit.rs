@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::future::FusedFuture;
+use futures_core::future::FusedFuture;
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
 use log::{warn, trace};
 

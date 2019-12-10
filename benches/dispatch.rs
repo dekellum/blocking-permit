@@ -6,15 +6,14 @@ extern crate test; // Still required, see rust-lang/rust#55133
 use std::thread;
 use std::time::Duration;
 
+use futures_executor as futr_exec;
+use futures_util::task::SpawnExt;
 use lazy_static::lazy_static;
-use test::Bencher;
-use futures::executor as futr_exec;
-
-use futures::task::SpawnExt;
 use rand::seq::SliceRandom;
+use test::Bencher;
 
 #[cfg(feature="tokio_threaded")]
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures_util::stream::{FuturesUnordered, StreamExt};
 
 use blocking_permit::{
     blocking_permit_future,

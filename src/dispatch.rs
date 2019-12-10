@@ -3,11 +3,15 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+#[cfg(not(any(feature = "tokio_oneshot", feature = "futures-channel")))]
+compile_error!("One of tokio_oneshot or futures-channel (default) \
+                features is required or this crate!");
+
 #[cfg(feature="tokio_oneshot")]
 use tokio::sync::oneshot;
 
 #[cfg(not(feature="tokio_oneshot"))]
-use futures::channel::oneshot;
+use futures_channel::oneshot;
 
 use crate::{Canceled, DispatchPool};
 

@@ -24,7 +24,7 @@ async fn create_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use futures::executor as futr_exec;
+    use futures_executor as futr_exec;
     use tempfile::tempdir;
 
     use crate::{deregister_dispatch_pool, DispatchPool};

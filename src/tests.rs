@@ -6,9 +6,12 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
-use futures::executor as futr_exec;
-use futures::future::FutureExt;
-use futures::task::SpawnExt;
+use futures_executor as futr_exec;
+use futures_util::future::FutureExt;
+use futures_util::task::SpawnExt;
+
+#[cfg(feature="tokio_threaded")]
+use futures_util::stream::{FuturesUnordered, StreamExt};
 
 use lazy_static::lazy_static;
 use log::{debug, info};
@@ -325,30 +328,31 @@ fn test_tokio_threadpool() {
     }
     static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
-    {
-        let mut rt = tokio::runtime::Builder::new()
-            .num_threads(3)
-            .threaded_scheduler()
-            .build()
-            .unwrap();
+    let mut rt = tokio::runtime::Builder::new()
+        .num_threads(3)
+        .threaded_scheduler()
+        .build()
+        .unwrap();
 
-        let futures: Vec<_> = (0..1000).map(|_| {
-            let j = async {
-                dispatch_or_permit!(&TEST_SET, || -> Result<usize, Canceled> {
-                    info!("do some blocking stuff - {:?}",
-                          std::thread::current().id());
-                    thread::sleep(Duration::from_millis(1));
-                    Ok(41)
-                })
-            }.map(|r| {
-                assert_eq!(41, r.expect("dispatch_or_permit future"));
-                FINISHED.fetch_add(1, Ordering::SeqCst);
-                ()
-            });
-            rt.spawn(j) // -> JoinHandle (future)
-        }).collect();
-
-        rt.block_on(futures::future::join_all(futures));
-    }
+    let futures: FuturesUnordered<_> = (0..1000).map(|_| {
+        let j = async {
+            dispatch_or_permit!(&TEST_SET, || -> Result<usize, Canceled> {
+                info!("do some blocking stuff - {:?}",
+                      std::thread::current().id());
+                thread::sleep(Duration::from_millis(1));
+                Ok(41)
+            })
+        }.map(|r| {
+            assert_eq!(41, r.expect("dispatch_or_permit future"));
+            FINISHED.fetch_add(1, Ordering::SeqCst);
+            ()
+        });
+        rt.spawn(j) // -> JoinHandle (future)
+    }).collect();
+    let join = rt.spawn(async {
+        let c = futures.collect::<Vec<_>>() .await;
+        assert_eq!(1000, c.iter().filter(|r| r.is_ok()).count());
+    });
+    rt.block_on(join).unwrap();
     assert_eq!(1000, FINISHED.load(Ordering::SeqCst));
 }
