@@ -6,8 +6,12 @@ extern crate test; // Still required, see rust-lang/rust#55133
 use lazy_static::lazy_static;
 use test::Bencher;
 use futures::executor as futr_exec;
+
 use futures::task::SpawnExt;
 use rand::seq::SliceRandom;
+
+#[cfg(feature="tokio_threaded")]
+use futures::stream::{FuturesUnordered, StreamExt};
 
 use blocking_permit::{
     blocking_permit_future,
@@ -28,7 +32,7 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
         .create();
 
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(5)
+        .num_threads(4)
         .threaded_scheduler()
         .on_thread_start(move || {
             register_dispatch_pool(pool.clone());
@@ -40,8 +44,8 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
         .unwrap();
 
     b.iter(|| {
-        let futures: Vec<_> = (0..100).map(|_| {
-            let job = async {
+        let futures: FuturesUnordered<_> = (0..100).map(|_| {
+            rt.spawn(async {
                 let p = blocking_permit_future(&TEST_SET)
                     .await
                     .unwrap();
@@ -50,11 +54,13 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
                     41
                 }).unwrap() .await .unwrap();
                 assert_eq!(41, r);
-                drop(p);
-            };
-            rt.spawn(job)
+            })
         }).collect();
-        rt.block_on(futures::future::join_all(futures));
+        let join = rt.spawn(async {
+            let c = futures.collect::<Vec<_>>() .await;
+            assert_eq!(100, c.iter().filter(|r| r.is_ok()).count());
+        });
+        rt.block_on(join).unwrap();
     });
 }
 
@@ -62,14 +68,14 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
 #[bench]
 fn noop_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(5)
+        .num_threads(4)
         .threaded_scheduler()
         .build()
         .unwrap();
 
     b.iter(|| {
-        let futures: Vec<_> = (0..100).map(|_| {
-            let job = async {
+        let futures: FuturesUnordered<_> = (0..100).map(|_| {
+            rt.spawn(async {
                 let p = blocking_permit_future(&TEST_SET)
                     .await
                     .unwrap();
@@ -78,11 +84,13 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
                     41
                 }) .await .unwrap();
                 assert_eq!(41, r);
-                drop(p);
-            };
-            rt.spawn(job)
+            })
         }).collect();
-        rt.block_on(futures::future::join_all(futures));
+        let join = rt.spawn(async {
+            let c = futures.collect::<Vec<_>>() .await;
+            assert_eq!(100, c.iter().filter(|r| r.is_ok()).count());
+        });
+        rt.block_on(join).unwrap();
     });
 }
 
@@ -96,17 +104,20 @@ fn noop_threaded_in_place(b: &mut Bencher) {
         .unwrap();
 
     b.iter(|| {
-        let futures: Vec<_> = (0..100).map(|_| {
-            let job = async {
+        let futures: FuturesUnordered<_> = (0..100).map(|_| {
+            rt.spawn(async {
                 let p = blocking_permit_future(&TEST_SET)
                     .await
                     .unwrap();
                 let r = p.run(|| 41);
                 assert_eq!(41, r);
-            };
-            rt.spawn(job)
+            })
         }).collect();
-        rt.block_on(futures::future::join_all(futures));
+        let join = rt.spawn(async {
+            let c = futures.collect::<Vec<_>>() .await;
+            assert_eq!(100, c.iter().filter(|r| r.is_ok()).count());
+        });
+        rt.block_on(join).unwrap();
     });
 }
 
@@ -129,7 +140,6 @@ fn noop_local_dispatch_rx(b: &mut Bencher) {
                     41
                 }).unwrap() .await .unwrap();
                 assert_eq!(41, r);
-                drop(p);
             }).unwrap();
         }
         pool.run();
@@ -145,7 +155,7 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
         .create();
 
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(5)
+        .num_threads(4)
         .threaded_scheduler()
         .on_thread_start(move || {
             register_dispatch_pool(pool.clone());
@@ -157,20 +167,28 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
         .unwrap();
 
     b.iter(|| {
-        let futures: Vec<_> = (0..100).map(|_| {
-            let job = async {
+        let futures: FuturesUnordered<_> = (0..100).map(|_| {
+            rt.spawn(async {
                 let p = blocking_permit_future(&TEST_SET)
                     .await
                     .unwrap();
                 p.enter();
+                // eprintln!("permit on {} {:?}",
+                //           std::thread::current().name().unwrap(),
+                //           std::thread::current().id());
                 let r = dispatch_rx(|| {
+                    // eprintln!("expensively on {}",
+                    //           std::thread::current().name().unwrap());
                     expensive_comp()
                 }).unwrap() .await .unwrap();
                 assert_eq!(100, r);
-            };
-            rt.spawn(job)
+            })
         }).collect();
-        rt.block_on(futures::future::join_all(futures));
+        let join = rt.spawn(async {
+            let c = futures.collect::<Vec<_>>() .await;
+            assert_eq!(100, c.iter().filter(|r| r.is_ok()).count());
+        });
+        rt.block_on(join).unwrap();
     });
 }
 
@@ -178,14 +196,14 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
 #[bench]
 fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(5)
+        .num_threads(4)
         .threaded_scheduler()
         .build()
         .unwrap();
 
     b.iter(|| {
-        let futures: Vec<_> = (0..100).map(|_| {
-            let job = async {
+        let futures: FuturesUnordered<_> = (0..100).map(|_| {
+            rt.spawn(async {
                 let p = blocking_permit_future(&TEST_SET)
                     .await
                     .unwrap();
@@ -194,10 +212,13 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
                     expensive_comp()
                 }) .await .unwrap();
                 assert_eq!(100, r);
-            };
-            rt.spawn(job)
+            })
         }).collect();
-        rt.block_on(futures::future::join_all(futures));
+        let join = rt.spawn(async {
+            let c = futures.collect::<Vec<_>>() .await;
+            assert_eq!(100, c.iter().filter(|r| r.is_ok()).count());
+        });
+        rt.block_on(join).unwrap();
     });
 }
 
@@ -211,17 +232,20 @@ fn r_expensive_threaded_in_place(b: &mut Bencher) {
         .unwrap();
 
     b.iter(|| {
-        let futures: Vec<_> = (0..100).map(|_| {
-            let job = async {
+        let futures: FuturesUnordered<_> = (0..100).map(|_| {
+            rt.spawn(async {
                 let p = blocking_permit_future(&TEST_SET)
                     .await
                     .unwrap();
                 let r = p.run(|| expensive_comp());
                 assert_eq!(100, r);
-            };
-            rt.spawn(job)
+            })
         }).collect();
-        rt.block_on(futures::future::join_all(futures));
+        let join = rt.spawn(async {
+            let c = futures.collect::<Vec<_>>() .await;
+            assert_eq!(100, c.iter().filter(|r| r.is_ok()).count());
+        });
+        rt.block_on(join).unwrap();
     });
 }
 
