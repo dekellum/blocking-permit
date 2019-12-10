@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use futures::future::FusedFuture;
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
-use log::{info, trace};
+use log::{warn, trace};
 
 use crate::{Canceled, Semaphore};
 
@@ -60,21 +60,16 @@ impl<'a> FusedFuture for BlockingPermitFuture<'a> {
 impl<'a> BlockingPermit<'a> {
     /// Enter the blocking section of code on the current thread.
     ///
-    /// This is a required secondary step from completion of the
-    /// [`BlockingPermitFuture`] as it _must_ be performed on the same thread,
+    /// This is a secondary step from completion of the
+    /// [`BlockingPermitFuture`] as it must be call on the same thread,
     /// immediately before the blocking section.  The blocking permit should
-    /// then be dropped at the end of the blocking section.
-    ///
-    /// ## TODO
-    ///
-    /// Currently this only used for internal testing to mimimally satisfy an
-    /// enter. As yet unclear if it should be retained and ultimately exported.
+    /// then be dropped at the end of the blocking section. With the
+    /// _tokio_threaded_ feature, `run` should be used instead.
     ///
     /// ## Panics
     ///
     /// Panics if this `BlockingPermit` has already been entered.
-    #[cfg(test)]
-    pub(crate) fn enter(&self) {
+    pub fn enter(&self) {
         if self.entered.replace(true) {
             panic!("BlockingPermit::enter (or run) called twice!");
         }
@@ -82,13 +77,16 @@ impl<'a> BlockingPermit<'a> {
 
     /// Enter and run the blocking closure.
     ///
-    /// This wraps the `tokio::task::block_in_place` call.
+    /// This wraps the `tokio::task::block_in_place` call, as a secondary step
+    /// from completion of the [`BlockingPermitFuture`] that must be call on
+    /// the same thread. The permit is passed by value and will be dropped on
+    /// termination of this call.
     ///
     /// ## Panics
     ///
     /// Panics if this `BlockingPermit` has already been entered.
     #[cfg(feature="tokio_threaded")]
-    pub fn run<F, T>(&self, f: F) -> T
+    pub fn run<F, T>(self, f: F) -> T
         where F: FnOnce() -> T
     {
         if self.entered.replace(true) {
@@ -103,7 +101,7 @@ impl<'a> Drop for BlockingPermit<'a> {
         if self.entered.get() {
             trace!("Dropped BlockingPermit (semaphore)");
         } else {
-            info!("Dropped BlockingPermit (semaphore) was never entered")
+            warn!("Dropped BlockingPermit (semaphore) was never entered")
         }
     }
 }
