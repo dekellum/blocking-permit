@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 #[cfg(not(any(feature = "tokio-oneshot", feature = "futures-channel")))]
 compile_error!("One of tokio-oneshot or futures-channel (default) \
-                features is required or this crate!");
+                features is required for this crate!");
 
 #[cfg(feature="tokio-oneshot")]
 use tokio::sync::oneshot;
