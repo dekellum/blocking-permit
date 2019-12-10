@@ -21,6 +21,9 @@ tempfile = { version=">=3.1.0, <3.2" }
 
 [features]
 default=[]
+tokio_oneshot=[
+    "tokio", "tokio/sync"
+]
 tokio_threaded=[
     "tokio",
     "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"

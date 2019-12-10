@@ -3,6 +3,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+#[cfg(feature="tokio_oneshot")]
+use tokio::sync::oneshot;
+
+#[cfg(not(feature="tokio_oneshot"))]
 use futures::channel::oneshot;
 
 use crate::{Canceled, DispatchPool};
