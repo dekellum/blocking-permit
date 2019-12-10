@@ -30,3 +30,7 @@ tokio_threaded=[
     "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"
 ]
 current_thread=[] # testing hack
+
+[profile.bench]
+lto = "thin"
+incremental = false
