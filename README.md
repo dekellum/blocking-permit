@@ -10,7 +10,7 @@ This crate provides:
   threads.
 
 * A `BlockingPermit` for limiting the number of concurrent blocking operations
-  via a [`Semaphore`] type.
+  via a `Semaphore` type.
 
 ## Minimum supported rust version
 
