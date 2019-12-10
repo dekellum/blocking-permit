@@ -5,7 +5,7 @@
 /// function. It first attempts to dispatch the closure via [`dispatch_rx`] and
 /// await. If a dispatch pool is not registered on the current thread, it
 /// instead obtains a permit via [`blocking_permit_future`] and awaits.  If the
-/// _tokio_threaded_ feature is enabled, it will then run the closure via
+/// _tokio-threaded_ feature is enabled, it will then run the closure via
 /// [`BlockingPermit::run`]. Otherwise it will run the closure directly.
 ///
 /// ## Usage
@@ -27,11 +27,11 @@
             }
             $crate::DispatchRx::NotRegistered(cl) => {
                 let permit = $crate::blocking_permit_future($semaphore) .await?;
-                #[cfg(not(feature="tokio_threaded"))] {
+                #[cfg(not(feature="tokio-threaded"))] {
                     permit.enter();
                     cl()
                 }
-                #[cfg(feature="tokio_threaded")] {
+                #[cfg(feature="tokio-threaded")] {
                     permit.run(cl)
                 }
             }

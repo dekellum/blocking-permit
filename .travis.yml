@@ -3,7 +3,11 @@ dist: xenial
 script:
   - 'if [ "$WITH_LOCK" != "true" ]; then cargo update; fi'
   - 'cargo test'
+  - 'cargo test --features current-thread'
+  - 'cargo test --no-default-features --features tokio-oneshot'
   - 'cargo test --all-features'
+  - 'cargo build'
+  - 'cargo build --all-features --all-targets'
 
 # See https://levans.fr/rust_travis_cache.html
 cache:
@@ -15,9 +19,16 @@ before_cache:
 env: # important!
 matrix:
   include:
-    - rust: nightly
+    - rust: 1.39.0
+    - rust: 1.39.0
+      env: WITH_LOCK=true
+    - rust: stable
       env: WITH_LOCK=true
     - rust: nightly
-      env: WITH_LOCK=true
+      env: MAY_FAIL=true
+    - rust: 1.39.0
       os: osx
+      env: WITH_LOCK=true
     - rust: nightly
+  allow_failures:
+    - env: MAY_FAIL=true

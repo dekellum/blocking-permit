@@ -10,7 +10,7 @@ use futures_executor as futr_exec;
 use futures_util::future::FutureExt;
 use futures_util::task::SpawnExt;
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 use futures_util::stream::{FuturesUnordered, StreamExt};
 
 use lazy_static::lazy_static;
@@ -50,7 +50,7 @@ fn register_dispatch_pool() {
 }
 
 fn maybe_register_dispatch_pool() {
-    #[cfg(feature="current_thread")] {
+    #[cfg(feature="current-thread")] {
         register_dispatch_pool();
     }
 }
@@ -319,7 +319,7 @@ fn test_futr_local_pool() {
     deregister_dispatch_pool();
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[test]
 fn test_tokio_threadpool() {
     log_init();

@@ -12,7 +12,7 @@ use lazy_static::lazy_static;
 use rand::seq::SliceRandom;
 use test::Bencher;
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 use futures_util::stream::{FuturesUnordered, StreamExt};
 
 use blocking_permit::{
@@ -26,7 +26,7 @@ lazy_static! {
     static ref TEST_SET: Semaphore = Semaphore::new(true, 20);
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_dispatch_rx(b: &mut Bencher) {
     let pool = DispatchPool::builder()
@@ -66,7 +66,7 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
     });
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
@@ -96,7 +96,7 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
     });
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
@@ -149,7 +149,7 @@ fn noop_local_dispatch_rx(b: &mut Bencher) {
     deregister_dispatch_pool();
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
     let pool = DispatchPool::builder()
@@ -194,7 +194,7 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
     });
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
@@ -224,7 +224,7 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
     });
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
@@ -277,7 +277,7 @@ fn r_expensive_local_dispatch_rx(b: &mut Bencher) {
     deregister_dispatch_pool();
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
     let pool = DispatchPool::builder()
@@ -317,7 +317,7 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
     });
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
@@ -347,7 +347,7 @@ fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
     });
 }
 
-#[cfg(feature="tokio_threaded")]
+#[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()

@@ -60,7 +60,7 @@ mod tests {
         deregister_dispatch_pool();
     }
 
-    #[cfg(feature="tokio_threaded")]
+    #[cfg(feature="tokio-threaded")]
     #[test]
     fn dir_create_permit() {
         log_init();

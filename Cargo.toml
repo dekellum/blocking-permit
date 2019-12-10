@@ -25,14 +25,13 @@ futures-util        = { version=">=0.3.1, <0.4" }
 
 [features]
 default=["futures-channel"]
-tokio_oneshot=[
+tokio-oneshot=[
     "tokio", "tokio/sync"
 ]
-tokio_threaded=[
-    "tokio",
-    "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"
+tokio-threaded=[
+    "tokio", "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"
 ]
-current_thread=[] # testing hack
+current-thread=[] # testing hack
 
 [profile.bench]
 lto = "thin"
