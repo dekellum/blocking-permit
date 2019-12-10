@@ -259,7 +259,7 @@ fn async_block_await_semaphore() {
         });
         match drx {
             DispatchRx::Dispatch(disp) => {
-                disp.await
+                disp .await
             }
             DispatchRx::NotRegistered(_) => {
                 let permit = blocking_permit_future(&TEST_SET) .await?;
