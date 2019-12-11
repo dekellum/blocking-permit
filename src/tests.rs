@@ -37,7 +37,7 @@ fn test_blocking_permit_traits() {
     // assert!(is_unwind_safe::<BlockingPermit<'_>>());
 
     assert!(is_send::<BlockingPermitFuture<'_>>());
-    // TODO: its not: assert!(is_sync::<BlockingPermitFuture<'_>>());
+    assert!(is_sync::<BlockingPermitFuture<'_>>());
 
 }
 

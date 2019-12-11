@@ -23,7 +23,8 @@ pub struct BlockingPermit<'a> {
 #[must_use = "must be `.await`ed or polled"]
 #[derive(Debug)]
 pub struct BlockingPermitFuture<'a> {
-    acquire: SemaphoreAcquireFuture<'a>
+    semaphore: &'a Semaphore,
+    acquire: Option<SemaphoreAcquireFuture<'a>>
 }
 
 impl<'a> Future for BlockingPermitFuture<'a> {
@@ -36,11 +37,15 @@ impl<'a> Future for BlockingPermitFuture<'a> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
-        // Safety: the self Pin means our self address is stable, and acquire
-        // is furthermore never moved.
-        let acq = unsafe {
-            Pin::new_unchecked(&mut self.get_unchecked_mut().acquire)
+        // Safety: FIXME
+        let this = unsafe { self.get_unchecked_mut() };
+        let acq = if let Some(ref mut af) = this.acquire {
+            af
+        } else {
+            this.acquire = Some(this.semaphore.acquire(1));
+            this.acquire.as_mut().unwrap()
         };
+        let acq = unsafe { Pin::new_unchecked(acq) };
         match acq.poll(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(releaser) => Poll::Ready(Ok(BlockingPermit {
@@ -51,9 +56,17 @@ impl<'a> Future for BlockingPermitFuture<'a> {
     }
 }
 
+// Safety: FIXME: In practice, its safely `Sync` when acquire: None (as upon
+// construction) and once poll'ed, the `Sync` aspect is no-longer used?
+unsafe impl<'a> Sync for BlockingPermitFuture<'a> {}
+
 impl<'a> FusedFuture for BlockingPermitFuture<'a> {
     fn is_terminated(&self) -> bool {
-        self.acquire.is_terminated()
+        if let Some(ref ff) = self.acquire {
+            ff.is_terminated()
+        } else {
+            false
+        }
     }
 }
 
@@ -118,6 +131,7 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
     -> BlockingPermitFuture<'_>
 {
     BlockingPermitFuture {
-        acquire: semaphore.acquire(1)
+        semaphore,
+        acquire: None
     }
 }
