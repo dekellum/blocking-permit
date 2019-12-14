@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::{Mutex, TryLockError};
 use std::task::{Context, Poll};
 
 use futures_core::future::FusedFuture;
@@ -23,7 +24,16 @@ pub struct BlockingPermit<'a> {
 #[must_use = "must be `.await`ed or polled"]
 #[derive(Debug)]
 pub struct BlockingPermitFuture<'a> {
-    acquire: SemaphoreAcquireFuture<'a>
+    semaphore: &'a Semaphore,
+    acquire: Option<SemaphoreAcquireFuture<'a>>
+}
+impl<'a> BlockingPermitFuture<'a> {
+    /// Make a `Sync` version of this future by wrapping with a `Mutex`.
+    pub fn make_sync(self) -> SyncBlockingPermitFuture<'a> {
+        SyncBlockingPermitFuture {
+            futr: Mutex::new(self)
+        }
+    }
 }
 
 impl<'a> Future for BlockingPermitFuture<'a> {
@@ -36,11 +46,15 @@ impl<'a> Future for BlockingPermitFuture<'a> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
-        // Safety: the self Pin means our self address is stable, and acquire
-        // is furthermore never moved.
-        let acq = unsafe {
-            Pin::new_unchecked(&mut self.get_unchecked_mut().acquire)
+        // Safety: FIXME
+        let this = unsafe { self.get_unchecked_mut() };
+        let acq = if let Some(ref mut af) = this.acquire {
+            af
+        } else {
+            this.acquire = Some(this.semaphore.acquire(1));
+            this.acquire.as_mut().unwrap()
         };
+        let acq = unsafe { Pin::new_unchecked(acq) };
         match acq.poll(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(releaser) => Poll::Ready(Ok(BlockingPermit {
@@ -53,7 +67,39 @@ impl<'a> Future for BlockingPermitFuture<'a> {
 
 impl<'a> FusedFuture for BlockingPermitFuture<'a> {
     fn is_terminated(&self) -> bool {
-        self.acquire.is_terminated()
+        if let Some(ref ff) = self.acquire {
+            ff.is_terminated()
+        } else {
+            false
+        }
+    }
+}
+
+/// A `Sync` wrapper available via [`BlockingPermitFuture::make_sync`].
+#[must_use = "must be `.await`ed or polled"]
+#[derive(Debug)]
+pub struct SyncBlockingPermitFuture<'a> {
+    futr: Mutex<BlockingPermitFuture<'a>>
+}
+
+impl<'a> Future for SyncBlockingPermitFuture<'a> {
+    type Output = Result<BlockingPermit<'a>, Canceled>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
+        -> Poll<Self::Output>
+    {
+        let this = unsafe { self.get_unchecked_mut() };
+        match this.futr.try_lock() {
+            Ok(mut guard) => {
+                let futr = unsafe { Pin::new_unchecked(&mut *guard) };
+                futr.poll(cx)
+            }
+            Err(TryLockError::Poisoned(_)) => Poll::Ready(Err(Canceled)),
+            Err(TryLockError::WouldBlock) => {
+                cx.waker().wake_by_ref(); //any spin should be brief
+                Poll::Pending
+            }
+        }
     }
 }
 
@@ -118,6 +164,7 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
     -> BlockingPermitFuture<'_>
 {
     BlockingPermitFuture {
-        acquire: semaphore.acquire(1)
+        semaphore,
+        acquire: None
     }
 }

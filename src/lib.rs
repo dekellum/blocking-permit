@@ -36,6 +36,7 @@ pub use permit::{
     blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
+    SyncBlockingPermitFuture,
 };
 
 /// An async-aware semaphore for constraining the number of concurrent blocking
