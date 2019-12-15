@@ -37,8 +37,9 @@ fn test_blocking_permit_traits() {
     // assert!(is_unwind_safe::<BlockingPermit<'_>>());
 
     assert!(is_send::<BlockingPermitFuture<'_>>());
-    assert!(is_sync::<SyncBlockingPermitFuture<'_>>());
 
+    assert!(is_send::<SyncBlockingPermitFuture<'_>>());
+    assert!(is_sync::<SyncBlockingPermitFuture<'_>>());
 }
 
 fn log_init() {

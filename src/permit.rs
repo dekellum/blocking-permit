@@ -88,8 +88,7 @@ impl<'a> Future for SyncBlockingPermitFuture<'a> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
-        let this = unsafe { self.get_unchecked_mut() };
-        match this.futr.try_lock() {
+        match self.futr.try_lock() {
             Ok(mut guard) => {
                 let futr = unsafe { Pin::new_unchecked(&mut *guard) };
                 futr.poll(cx)
