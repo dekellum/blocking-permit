@@ -23,15 +23,13 @@ lazy_static! {
 }
 
 fn is_send<T: Send>() -> bool { true }
-
-#[allow(dead_code)] fn is_sync<T: Sync>() -> bool { true }
+fn is_sync<T: Sync>() -> bool { true }
 
 #[allow(dead_code)] fn is_unwind_safe<T: UnwindSafe>() -> bool { true }
 
 #[test]
 fn test_blocking_permit_traits() {
     assert!(is_send::<BlockingPermit<'_>>());
-    // TODO: its not: assert!(is_sync::<BlockingPermit<'_>>());
 
     // TODO: its not UnwindSafe because internals are not.  Does it need to be?
     // assert!(is_unwind_safe::<BlockingPermit<'_>>());
