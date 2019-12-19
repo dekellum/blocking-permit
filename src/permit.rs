@@ -127,8 +127,9 @@ impl<'a> BlockingPermit<'a> {
     /// This is a secondary step from completion of the
     /// [`BlockingPermitFuture`] as it must be call on the same thread,
     /// immediately before the blocking section.  The blocking permit should
-    /// then be dropped at the end of the blocking section. With the
-    /// _tokio-threaded_ feature, `run` should be used instead.
+    /// then be dropped at the end of the blocking section. If the
+    /// _tokio-threaded_ feature is or might be used, `run` should be
+    /// used instead.
     ///
     /// ## Panics
     ///
@@ -149,14 +150,20 @@ impl<'a> BlockingPermit<'a> {
     /// ## Panics
     ///
     /// Panics if this `BlockingPermit` has already been entered.
-    #[cfg(feature="tokio-threaded")]
     pub fn run<F, T>(self, f: F) -> T
         where F: FnOnce() -> T
     {
         if self.entered.replace(true) {
             panic!("BlockingPermit::run (or enter) called twice!");
         }
-        tokio::task::block_in_place(f)
+
+        #[cfg(feature="tokio-threaded")] {
+            tokio::task::block_in_place(f)
+        }
+
+        #[cfg(not(feature="tokio-threaded"))] {
+            f()
+        }
     }
 }
 
