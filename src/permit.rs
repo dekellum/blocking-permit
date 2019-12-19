@@ -28,6 +28,15 @@ pub struct BlockingPermitFuture<'a> {
     acquire: Option<SemaphoreAcquireFuture<'a>>
 }
 impl<'a> BlockingPermitFuture<'a> {
+    /// Construct given `Semaphore` reference.
+    pub fn new(semaphore: &Semaphore) -> BlockingPermitFuture<'_>
+    {
+        BlockingPermitFuture {
+            semaphore,
+            acquire: None
+        }
+    }
+
     /// Make a `Sync` version of this future by wrapping with a `Mutex`.
     pub fn make_sync(self) -> SyncBlockingPermitFuture<'a> {
         SyncBlockingPermitFuture {
@@ -80,6 +89,16 @@ impl<'a> FusedFuture for BlockingPermitFuture<'a> {
 #[derive(Debug)]
 pub struct SyncBlockingPermitFuture<'a> {
     futr: Mutex<BlockingPermitFuture<'a>>
+}
+
+impl<'a> SyncBlockingPermitFuture<'a> {
+    /// Construct given `Semaphore` reference.
+    pub fn new(semaphore: &'a Semaphore) -> SyncBlockingPermitFuture<'a>
+    {
+        SyncBlockingPermitFuture {
+            futr: Mutex::new(BlockingPermitFuture::new(semaphore))
+        }
+    }
 }
 
 impl<'a> Future for SyncBlockingPermitFuture<'a> {
