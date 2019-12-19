@@ -27,6 +27,7 @@ pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
     acquire: Option<SemaphoreAcquireFuture<'a>>
 }
+
 impl<'a> BlockingPermitFuture<'a> {
     /// Construct given `Semaphore` reference.
     pub fn new(semaphore: &Semaphore) -> BlockingPermitFuture<'_>
