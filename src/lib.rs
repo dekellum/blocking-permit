@@ -1,13 +1,14 @@
-//! This crate provides a few major types of functionality:
+//! This crate provides:
 //!
 //! * A specialized, custom thread pool, [`DispatchPool`], for offloading
 //!   blocking or otherwise long running operations from a main or reactor
-//!   threads. Once registered, it is used via [`dispatch_rx()`] or [`dispatch()`]
-//!   for background tasks.
+//!   thread(s). Once registered, it is used via [`dispatch_rx()`] (to await a
+//!   return value) or [`dispatch()`] for background tasks (fire and forget).
 //!
 //! * A [`BlockingPermit`], obtained via [`blocking_permit_future()`] for
 //!   limiting the number of concurrent blocking operations via a re-exported
-//!   [`Semaphore`] type (currently from the _futures-intrusive_ crate.)
+//!   [`Semaphore`] type selected by one of the (non-default) features
+//!   _futures-intrusive_, or _tokio-semaphore_ (or _tokio-omnibus_).
 
 #![warn(rust_2018_idioms)]
 
