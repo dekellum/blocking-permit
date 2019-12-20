@@ -48,6 +48,10 @@ fn test_blocking_permit_traits() {
 
     assert!(is_send::<BlockingPermitFuture<'_>>());
 
+    #[cfg(features = "tokio-semaphore")] {
+        assert!(is_sync::<BlockingPermitFuture<'_>>());
+    }
+
     assert!(is_send::<SyncBlockingPermitFuture<'_>>());
     assert!(is_sync::<SyncBlockingPermitFuture<'_>>());
 }

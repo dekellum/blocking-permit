@@ -26,12 +26,15 @@ pub struct BlockingPermit<'a> {
     pub(crate) entered: Cell<bool>
 }
 
+/// Alias for a guaranteed `Sync` version of the BlockingPermitFuture
+pub type SyncBlockingPermitFuture<'a> = BlockingPermitFuture<'a>;
+
 /// A future which resolves to a [`BlockingPermit`], created via the
 /// [`blocking_permit_future`] function.
 #[must_use = "must be `.await`ed or polled"]
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
-    permit: Option<Box<dyn Future<Output=SemaphorePermit<'a>> + Send + 'a>>,
+    permit: Option<Box<dyn Future<Output=SemaphorePermit<'a>> + Send + Sync + 'a>>,
     acquired: bool,
 }
 
@@ -52,6 +55,12 @@ impl<'a> BlockingPermitFuture<'a> {
             acquired: false,
         }
     }
+
+    /// Make a `Sync` version of this future by wrapping with a `Mutex`.
+    pub fn make_sync(self) -> SyncBlockingPermitFuture<'a> {
+        self
+    }
+
 }
 
 impl<'a> fmt::Debug for BlockingPermitFuture<'a> {

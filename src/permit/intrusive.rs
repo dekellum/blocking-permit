@@ -1,9 +1,11 @@
 use std::cell::Cell;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::{Mutex, TryLockError};
 use std::task::{Context, Poll};
 
 use futures_core::future::FusedFuture;
+
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
 
 /// An async-aware semaphore for constraining the number of concurrent blocking
@@ -43,6 +45,13 @@ impl<'a> BlockingPermitFuture<'a> {
         BlockingPermitFuture {
             semaphore,
             acquire: None
+        }
+    }
+
+    /// Make a `Sync` version of this future by wrapping with a `Mutex`.
+    pub fn make_sync(self) -> SyncBlockingPermitFuture<'a> {
+        SyncBlockingPermitFuture {
+            futr: Mutex::new(self)
         }
     }
 }
@@ -98,4 +107,41 @@ pub fn blocking_permit_future(semaphore: &Semaphore)
     -> BlockingPermitFuture<'_>
 {
     BlockingPermitFuture::new(semaphore)
+}
+
+/// A `Sync` wrapper available via [`BlockingPermitFuture::make_sync`].
+#[must_use = "must be `.await`ed or polled"]
+#[derive(Debug)]
+pub struct SyncBlockingPermitFuture<'a> {
+    futr: Mutex<BlockingPermitFuture<'a>>
+}
+
+impl<'a> SyncBlockingPermitFuture<'a> {
+    /// Construct given `Semaphore` reference.
+    pub fn new(semaphore: &'a Semaphore) -> SyncBlockingPermitFuture<'a>
+    {
+        SyncBlockingPermitFuture {
+            futr: Mutex::new(BlockingPermitFuture::new(semaphore))
+        }
+    }
+}
+
+impl<'a> Future for SyncBlockingPermitFuture<'a> {
+    type Output = Result<BlockingPermit<'a>, Canceled>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
+        -> Poll<Self::Output>
+    {
+        match self.futr.try_lock() {
+            Ok(mut guard) => {
+                let futr = unsafe { Pin::new_unchecked(&mut *guard) };
+                futr.poll(cx)
+            }
+            Err(TryLockError::Poisoned(_)) => Poll::Ready(Err(Canceled)),
+            Err(TryLockError::WouldBlock) => {
+                cx.waker().wake_by_ref(); //any spin should be brief
+                Poll::Pending
+            }
+        }
+    }
 }
