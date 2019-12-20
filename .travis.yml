@@ -7,7 +7,7 @@ script:
   - 'cargo test --features current-thread'
   - 'cargo test --no-default-features --features tokio-oneshot'
   - 'cargo test --no-default-features --features tokio-threaded,tokio-oneshot'
-  - 'cargo test --no-default-features --features tokio-semaphore,tokio-oneshot
+  - 'cargo test --no-default-features --features tokio-semaphore,tokio-oneshot'
   - 'cargo test --no-default-features --features tokio-threaded,tokio-oneshot,tokio-semaphore'
   - 'cargo test --features futures-intrusive'
   - 'cargo test --features tokio-threaded,futures-intrusive'
