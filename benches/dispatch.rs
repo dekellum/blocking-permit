@@ -17,12 +17,14 @@ use test::Bencher;
 use futures_util::stream::{FuturesUnordered, StreamExt};
 
 use blocking_permit::{
-    blocking_permit_future,
     dispatch_rx, DispatchPool,
     deregister_dispatch_pool, register_dispatch_pool,
     Semaphore,
     Semaphorish,
 };
+
+#[cfg(feature="tokio-threaded")]
+use blocking_permit::blocking_permit_future;
 
 lazy_static! {
     static ref DEFAULT_SET: Semaphore = Semaphore::default_new(4);
@@ -52,10 +54,6 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&DEFAULT_SET)
-                    .await
-                    .unwrap();
-                p.enter();
                 let r = dispatch_rx(|| {
                     41
                 }).unwrap() .await .unwrap();
@@ -83,10 +81,6 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&DEFAULT_SET)
-                    .await
-                    .unwrap();
-                p.enter();
                 let r = tokio::task::spawn_blocking(|| {
                     41
                 }) .await .unwrap();
@@ -141,10 +135,6 @@ fn noop_local_dispatch_rx(b: &mut Bencher) {
         let sp = pool.spawner();
         for _ in 0..100 {
             sp.spawn(async {
-                let p = blocking_permit_future(&DEFAULT_SET)
-                    .await
-                    .unwrap();
-                p.enter();
                 let r = dispatch_rx(|| {
                     41
                 }).unwrap() .await .unwrap();
@@ -179,13 +169,6 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&DEFAULT_SET)
-                    .await
-                    .unwrap();
-                p.enter();
-                // eprintln!("permit on {} {:?}",
-                //           std::thread::current().name().unwrap(),
-                //           std::thread::current().id());
                 let r = dispatch_rx(|| {
                     // eprintln!("expensively on {}",
                     //           std::thread::current().name().unwrap());
@@ -215,10 +198,6 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&DEFAULT_SET)
-                    .await
-                    .unwrap();
-                p.enter();
                 let r = tokio::task::spawn_blocking(|| {
                     expensive_comp()
                 }) .await .unwrap();
@@ -273,10 +252,6 @@ fn r_expensive_local_dispatch_rx(b: &mut Bencher) {
         let sp = pool.spawner();
         for _ in 0..100 {
             sp.spawn(async {
-                let p = blocking_permit_future(&DEFAULT_SET)
-                    .await
-                    .unwrap();
-                p.enter();
                 let r = dispatch_rx(|| {
                     expensive_comp()
                 }).unwrap() .await .unwrap();
@@ -311,10 +286,6 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&SLEEP_SET)
-                    .await
-                    .unwrap();
-                p.enter();
                 let r = dispatch_rx(|| {
                     random_sleep()
                 }).unwrap() .await .unwrap();
@@ -342,10 +313,6 @@ fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&SLEEP_SET)
-                    .await
-                    .unwrap();
-                p.enter();
                 let r = tokio::task::spawn_blocking(|| {
                     random_sleep()
                 }) .await .unwrap();
@@ -400,10 +367,6 @@ fn sleep_local_dispatch_rx(b: &mut Bencher) {
         let sp = pool.spawner();
         for _ in 0..100 {
             sp.spawn(async {
-                let p = blocking_permit_future(&SLEEP_SET)
-                    .await
-                    .unwrap();
-                p.enter();
                 let r = dispatch_rx(|| {
                     random_sleep()
                 }).unwrap() .await .unwrap();
