@@ -34,7 +34,9 @@ pub type SyncBlockingPermitFuture<'a> = BlockingPermitFuture<'a>;
 #[must_use = "must be `.await`ed or polled"]
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
-    permit: Option<Box<dyn Future<Output=SemaphorePermit<'a>> + Send + Sync + 'a>>,
+    permit: Option<Pin<Box<
+            dyn Future<Output=SemaphorePermit<'a>> + Send + Sync + 'a
+            >>>,
     acquired: bool,
 }
 
@@ -78,29 +80,34 @@ impl<'a> fmt::Debug for BlockingPermitFuture<'a> {
 impl<'a> Future for BlockingPermitFuture<'a> {
     type Output = Result<BlockingPermit<'a>, Canceled>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
+    // Note that with this implementation, `Canceled` is never returned. For
+    // maximum future flexibilty, however, we keep the error type in place.
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
-        if self.acquired {
+        let this = self.get_mut();
+
+        if this.acquired {
             panic!("BlockingPermitFuture::poll called again after acquired");
         }
 
-        let mut permit = self.permit.take()
-            .unwrap_or_else(|| Box::new(self.semaphore.acquire()));
+        let permit = if let Some(ref mut pt) = this.permit {
+            pt.as_mut()
+        } else {
+            this.permit = Some(Box::pin(this.semaphore.acquire()));
+            this.permit.as_mut().unwrap().as_mut()
+        };
 
-        let ppin = unsafe { Pin::new_unchecked(&mut *permit) };
-        match ppin.poll(cx) {
+        match permit.poll(cx) {
+            Poll::Pending => Poll::Pending,
             Poll::Ready(sp) => {
                 debug!("Creating BlockingPermit (semaphore)");
-                self.acquired = true;
+                this.acquired = true;
                 Poll::Ready(Ok(BlockingPermit {
                     permit: sp,
                     entered: Cell::new(false)
                 }))
-            }
-            Poll::Pending => {
-                self.permit = Some(permit);
-                Poll::Pending
             }
         }
     }
