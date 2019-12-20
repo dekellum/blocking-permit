@@ -57,7 +57,9 @@ impl<'a> BlockingPermitFuture<'a> {
     }
 
     /// Ensure a `Sync` version of this future.
-    pub fn make_sync(self) -> SyncBlockingPermitFuture<'a> {
+    pub fn make_sync(self) -> SyncBlockingPermitFuture<'a>
+        where Self: Sync
+    {
         self
     }
 
