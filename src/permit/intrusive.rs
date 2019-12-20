@@ -60,13 +60,11 @@ impl<'a> Future for BlockingPermitFuture<'a> {
     type Output = Result<BlockingPermit<'a>, Canceled>;
 
     // Note that with this implementation, `Canceled` is never returned. For
-    // maximum future flexibilty however (like reverting to tokio's Semaphore)
-    // we keep the error type in place.
+    // maximum future flexibilty, however, we keep the error type in place.
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
-        // Safety: FIXME
         let this = unsafe { self.get_unchecked_mut() };
         let acq = if let Some(ref mut af) = this.acquire {
             af
@@ -74,6 +72,9 @@ impl<'a> Future for BlockingPermitFuture<'a> {
             this.acquire = Some(this.semaphore.acquire(1));
             this.acquire.as_mut().unwrap()
         };
+
+        // Safety: In this projection we Pin the underlying Future for the
+        // duration of `poll` and it is not further moved.
         let acq = unsafe { Pin::new_unchecked(acq) };
         match acq.poll(cx) {
             Poll::Pending => Poll::Pending,
