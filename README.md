@@ -1,7 +1,10 @@
 # blocking-permit
 
+[![crates.io](https://img.shields.io/crates/v/blocking-permit.svg?maxAge=3600)](https://crates.io/crates/blocking-permit)
+[![Rustdoc](https://docs.rs/blocking-permit/badge.svg)](https://docs.rs/blocking-permit)
 [![Travis CI Build](https://travis-ci.org/dekellum/blocking-permit.svg?branch=master)](https://travis-ci.org/dekellum/blocking-permit)
 [![MSRV](https://img.shields.io/badge/rustc-%E2%89%A5%201.39-orange.svg)](https://github.com/rust-lang/rust/blob/master/RELEASES.md)
+[![deps status](https://deps.rs/repo/github/dekellum/blocking-permit/status.svg)](https://deps.rs/repo/github/dekellum/blocking-permit)
 
 This crate provides:
 
