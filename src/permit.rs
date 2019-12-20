@@ -5,7 +5,6 @@ mod tokio_semaphore;
 
 #[cfg(feature = "tokio-semaphore")]
 pub use tokio_semaphore::{
-    blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
     Semaphore,
@@ -19,7 +18,6 @@ mod intrusive;
 #[cfg(not(feature = "tokio-semaphore"))]
 #[cfg(feature = "futures-intrusive")]
 pub use intrusive::{
-    blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
     Semaphore,
@@ -87,4 +85,18 @@ impl<'a> Drop for BlockingPermit<'a> {
             warn!("Dropped BlockingPermit (semaphore) was never entered")
         }
     }
+}
+
+/// Request a permit to perform a blocking operation on the current thread.
+///
+/// The returned future attempts to obtain a permit from the provided
+/// `Semaphore` and outputs a `BlockingPermit` which can then be
+/// [`run`](BlockingPermit::run) to allow blocking or "long running"
+/// operation, while the `BlockingPermit` remains in scope. If no permits are
+/// immediately available, then the current task context will be notified when
+/// one becomes available.
+pub fn blocking_permit_future(semaphore: &Semaphore)
+    -> BlockingPermitFuture<'_>
+{
+    BlockingPermitFuture::new(semaphore)
 }

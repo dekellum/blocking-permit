@@ -105,17 +105,3 @@ impl<'a> Future for BlockingPermitFuture<'a> {
         }
     }
 }
-
-/// Request a permit to perform a blocking operation on the current thread.
-///
-/// The returned future attempts to obtain a permit from the provided
-/// `Semaphore` and outputs a `BlockingPermit` which can then be
-/// [`run`](BlockingPermit::run) to allow blocking or "long running" operation,
-/// while the `BlockingPermit` remains in scope. If no permits are immediately
-/// available, then the current task context will be notified when one becomes
-/// available.
-pub fn blocking_permit_future(semaphore: &Semaphore)
-    -> BlockingPermitFuture<'_>
-{
-    BlockingPermitFuture::new(semaphore)
-}
