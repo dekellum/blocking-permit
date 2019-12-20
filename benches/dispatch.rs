@@ -28,7 +28,7 @@ use blocking_permit::blocking_permit_future;
 
 lazy_static! {
     static ref DEFAULT_SET: Semaphore = Semaphore::default_new(4);
-    static ref SLEEP_SET: Semaphore = Semaphore::default_new(20);
+    static ref SLEEP_SET: Semaphore = Semaphore::default_new(40);
 }
 
 #[cfg(feature="tokio-threaded")]
@@ -73,7 +73,7 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
 fn noop_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
         .core_threads(4)
-        .max_threads(4+4+1)
+        .max_threads(4+4)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -100,7 +100,7 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
 fn noop_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
         .core_threads(4)
-        .max_threads(4+4+1)
+        .max_threads(4+4)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -190,7 +190,7 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
 fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
         .core_threads(4)
-        .max_threads(4+4+1)
+        .max_threads(4+4)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -217,7 +217,7 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
 fn r_expensive_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
         .core_threads(4)
-        .max_threads(4+4+1)
+        .max_threads(4+4)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -267,7 +267,7 @@ fn r_expensive_local_dispatch_rx(b: &mut Bencher) {
 #[bench]
 fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
     let pool = DispatchPool::builder()
-        .pool_size(20)
+        .pool_size(40)
         .create();
 
     let mut rt = tokio::runtime::Builder::new()
@@ -305,7 +305,7 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
 fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
         .core_threads(4)
-        .max_threads(4+20+1)
+        .max_threads(4+40)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -332,7 +332,7 @@ fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
 fn sleep_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
         .core_threads(4)
-        .max_threads(4+20+1)
+        .max_threads(4+40)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -359,7 +359,7 @@ fn sleep_threaded_in_place(b: &mut Bencher) {
 #[bench]
 fn sleep_local_dispatch_rx(b: &mut Bencher) {
     let pool = DispatchPool::builder()
-        .pool_size(20)
+        .pool_size(40)
         .create();
     register_dispatch_pool(pool);
     b.iter(|| {
