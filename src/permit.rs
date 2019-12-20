@@ -24,8 +24,12 @@ pub use intrusive::{
     SyncBlockingPermitFuture,
 };
 
+/// Extension trait for uniform construction of the re-exported [`Semaphore`]
+/// types.
 pub trait Semaphorish {
-    /// Construct given number of permits. Choose _fair_ if that is an option.
+    /// Construct given number of permits.
+    ///
+    /// This chooses _fair_ scheduling, if that is a supported option.
     fn default_new(permits: usize) -> Self;
 }
 

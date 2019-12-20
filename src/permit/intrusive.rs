@@ -8,8 +8,6 @@ use futures_core::future::FusedFuture;
 
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
 
-/// An async-aware semaphore for constraining the number of concurrent blocking
-/// operations.
 pub use futures_intrusive::sync::Semaphore;
 
 use crate::{Canceled, Semaphorish};
@@ -23,8 +21,7 @@ pub struct BlockingPermit<'a> {
     pub(crate) entered: Cell<bool>
 }
 
-/// A future which resolves to a [`BlockingPermit`], created via the
-/// [`blocking_permit_future`] function.
+/// A future which resolves to a [`BlockingPermit`].
 #[must_use = "must be `.await`ed or polled"]
 #[derive(Debug)]
 pub struct BlockingPermitFuture<'a> {

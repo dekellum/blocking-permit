@@ -41,10 +41,22 @@ pub use permit::{
     blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
-    Semaphore,
     Semaphorish,
     SyncBlockingPermitFuture,
 };
+
+/// An async-aware semaphore for constraining the number of concurrent blocking
+/// operations.
+///
+/// This re-exported type is either `futures_intrusive::sync::Semaphore`
+/// (_futures-intrusive_ feature) or `tokio::sync::Semaphore`
+/// (_tokio-semaphore_ or _tokio-omnibus_ features).
+///
+/// ----------
+///
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
+#[doc(inline)]
+pub use permit::Semaphore;
 
 #[cfg(test)]
 mod tests;

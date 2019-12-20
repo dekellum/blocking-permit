@@ -29,8 +29,7 @@ pub struct BlockingPermit<'a> {
 /// Alias for a guaranteed `Sync` version of the BlockingPermitFuture
 pub type SyncBlockingPermitFuture<'a> = BlockingPermitFuture<'a>;
 
-/// A future which resolves to a [`BlockingPermit`], created via the
-/// [`blocking_permit_future`] function.
+/// A future which resolves to a [`BlockingPermit`].
 #[must_use = "must be `.await`ed or polled"]
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,

@@ -52,3 +52,6 @@ current-thread=[] # testing hack only
 [profile.bench]
 lto = "thin"
 incremental = false
+
+[package.metadata.docs.rs]
+features = ["futures-intrusive"]
