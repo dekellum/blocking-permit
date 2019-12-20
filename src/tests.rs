@@ -28,15 +28,9 @@ use log::info;
 
 use crate::*;
 
-#[cfg(feature = "tokio-semaphore")]
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 lazy_static! {
-    static ref TEST_SET: Semaphore = Semaphore::new(1);
-}
-
-#[cfg(not(feature = "tokio-semaphore"))]
-#[cfg(feature = "futures-intrusive")]
-lazy_static! {
-    static ref TEST_SET: Semaphore = Semaphore::new(true, 1);
+    static ref TEST_SET: Semaphore = Semaphore::default_new(1);
 }
 
 #[allow(dead_code)] fn is_send<T: Send>() -> bool { true }
@@ -358,15 +352,8 @@ fn test_futr_local_pool() {
 fn test_tokio_threadpool() {
     log_init();
 
-    #[cfg(feature = "tokio-semaphore")]
     lazy_static! {
-        static ref TEST_SET: Semaphore = Semaphore::new(3);
-    }
-
-    #[cfg(not(feature = "tokio-semaphore"))]
-    #[cfg(feature = "futures-intrusive")]
-    lazy_static! {
-        static ref TEST_SET: Semaphore = Semaphore::new(true, 3);
+        static ref TEST_SET: Semaphore = Semaphore::default_new(3);
     }
 
     static FINISHED: AtomicUsize = AtomicUsize::new(0);

@@ -41,6 +41,7 @@ pub use permit::{
     BlockingPermit,
     BlockingPermitFuture,
     Semaphore,
+    Semaphorish,
     SyncBlockingPermitFuture,
 };
 

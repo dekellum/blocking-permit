@@ -1,4 +1,5 @@
-// TODO: This is currently just a subset of potential usage from tokio_fs
+// TODO: This is currently just a subset of potential usage from tokio_fs,
+// retained for testing.
 
 use std::fs;
 use std::io;
@@ -6,17 +7,10 @@ use std::path::Path;
 
 use lazy_static::lazy_static;
 
-use crate::{dispatch_or_permit, Semaphore};
+use crate::{dispatch_or_permit, Semaphore, Semaphorish};
 
-#[cfg(feature = "tokio-semaphore")]
 lazy_static! {
-    static ref BLOCKING_SET: Semaphore = Semaphore::new(1);
-}
-
-#[cfg(not(feature = "tokio-semaphore"))]
-#[cfg(feature = "futures-intrusive")]
-lazy_static! {
-    static ref BLOCKING_SET: Semaphore = Semaphore::new(true, 1);
+    static ref BLOCKING_SET: Semaphore = Semaphore::default_new(1);
 }
 
 /// Creates a new, empty directory at the provided path

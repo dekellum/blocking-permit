@@ -6,7 +6,11 @@ use std::task::{Context, Poll};
 use futures_core::future::FusedFuture;
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
 
-use crate::{Canceled, Semaphore};
+/// An async-aware semaphore for constraining the number of concurrent blocking
+/// operations.
+pub use futures_intrusive::sync::Semaphore;
+
+use crate::{Canceled, Semaphorish};
 
 /// A scoped permit for blocking operations. When dropped (out of scope or
 /// manually), the permit is released.
@@ -24,6 +28,12 @@ pub struct BlockingPermit<'a> {
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
     acquire: Option<SemaphoreAcquireFuture<'a>>
+}
+
+impl Semaphorish for Semaphore {
+    fn default_new(permits: usize) -> Self {
+        Semaphore::new(true, permits)
+    }
 }
 
 impl<'a> BlockingPermitFuture<'a> {

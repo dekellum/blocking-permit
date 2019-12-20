@@ -6,9 +6,13 @@ use std::task::{Context, Poll};
 
 use log::debug;
 
-use tokio::sync::{SemaphorePermit, Semaphore};
+use tokio::sync::SemaphorePermit;
 
-use crate::Canceled;
+/// An async-aware semaphore for constraining the number of concurrent blocking
+/// operations.
+pub use tokio::sync::Semaphore;
+
+use crate::{Canceled, Semaphorish};
 
 /// A scoped permit for blocking operations. When dropped (out of scope or
 /// manually), the permit is released.
@@ -29,6 +33,12 @@ pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
     permit: Option<Box<dyn Future<Output=SemaphorePermit<'a>> + Send + 'a>>,
     acquired: bool,
+}
+
+impl Semaphorish for Semaphore {
+    fn default_new(permits: usize) -> Self {
+        Semaphore::new(permits)
+    }
 }
 
 impl<'a> BlockingPermitFuture<'a> {

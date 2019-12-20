@@ -15,14 +15,11 @@ pub use tokio_semaphore::{
     blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
+    Semaphore
 };
 
-/// An async-aware semaphore for constraining the number of concurrent blocking
-/// operations.
-#[cfg(feature = "tokio-semaphore")]
-pub use tokio::sync::Semaphore;
-
 #[cfg(not(feature = "tokio-semaphore"))]
+#[cfg(feature = "futures-intrusive")]
 mod intrusive;
 
 #[cfg(not(feature = "tokio-semaphore"))]
@@ -31,13 +28,13 @@ pub use intrusive::{
     blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
+    Semaphore
 };
 
-/// An async-aware semaphore for constraining the number of concurrent blocking
-/// operations.
-#[cfg(not(feature = "tokio-semaphore"))]
-#[cfg(feature = "futures-intrusive")]
-pub use futures_intrusive::sync::Semaphore;
+pub trait Semaphorish {
+    /// Construct given number of permits. Choose _fair_ if that is an option.
+    fn default_new(permits: usize) -> Self;
+}
 
 // Note: these methods are common to both above struct definitions
 
