@@ -338,7 +338,9 @@ impl DispatchPoolBuilder {
 
     /// Set name prefix for threads in the pool.
     ///
-    /// Default: "dpx-pool-N-" where N is a 0-based static pool counter
+    /// The (unique) thread index is appended to form the complete thread name.
+    ///
+    /// Default: "dpx-pool-N-" where N is a 0-based global pool counter.
     pub fn name_prefix<S: Into<String>>(&mut self, name_prefix: S) -> &mut Self {
         self.name_prefix = Some(name_prefix.into());
         self
