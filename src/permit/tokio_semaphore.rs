@@ -56,7 +56,7 @@ impl<'a> BlockingPermitFuture<'a> {
         }
     }
 
-    /// Make a `Sync` version of this future by wrapping with a `Mutex`.
+    /// Ensure a `Sync` version of this future.
     pub fn make_sync(self) -> SyncBlockingPermitFuture<'a> {
         self
     }
