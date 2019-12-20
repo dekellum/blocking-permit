@@ -8,8 +8,15 @@ use lazy_static::lazy_static;
 
 use crate::{dispatch_or_permit, Semaphore};
 
+#[cfg(feature = "tokio-semaphore")]
 lazy_static! {
-    pub static ref BLOCKING_SET: Semaphore = Semaphore::new(true, 1);
+    static ref BLOCKING_SET: Semaphore = Semaphore::new(1);
+}
+
+#[cfg(not(feature = "tokio-semaphore"))]
+#[cfg(feature = "futures-intrusive")]
+lazy_static! {
+    static ref BLOCKING_SET: Semaphore = Semaphore::new(true, 1);
 }
 
 /// Creates a new, empty directory at the provided path
@@ -71,7 +78,8 @@ mod tests {
 
         {
             let mut rt = tokio::runtime::Builder::new()
-                .num_threads(2)
+                .core_threads(2)
+                .max_threads(2)
                 .threaded_scheduler()
                 .build()
                 .unwrap();

@@ -20,7 +20,7 @@ lazy_static         = { version=">= 1.3.0, <1.5" }
 log                 = { version=">=0.4.4, <0.5" }
 crossbeam-channel   = { version=">=0.4.0, <0.5" }
 num_cpus            = { version=">=1.11.1, <1.12" }
-futures-intrusive   = { version=">=0.2.2, <0.3" }
+futures-intrusive   = { version=">=0.2.2, <0.3", optional=true }
 tokio               = { version=">=0.2.2, <0.3", optional=true }
 
 [dev-dependencies]
@@ -37,6 +37,9 @@ tokio-oneshot=[
 ]
 tokio-threaded=[
     "tokio", "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"
+]
+tokio-semaphore=[
+    "tokio", "tokio/sync"
 ]
 current-thread=[] # testing hack
 

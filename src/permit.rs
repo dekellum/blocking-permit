@@ -1,126 +1,45 @@
-use std::cell::Cell;
+use std::sync::{Mutex, TryLockError};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Mutex, TryLockError};
 use std::task::{Context, Poll};
 
-use futures_core::future::FusedFuture;
-use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
+use crate::Canceled;
+
 use log::{warn, trace};
 
-use crate::{Canceled, Semaphore};
+#[cfg(feature = "tokio-semaphore")]
+mod tokio_semaphore;
 
-/// A scoped permit for blocking operations. When dropped (out of scope or
-/// manually), the permit is released.
-#[must_use = "must call `enter` before blocking"]
-#[derive(Debug)]
-pub struct BlockingPermit<'a> {
-    releaser: SemaphoreReleaser<'a>,
-    entered: Cell<bool>
-}
+#[cfg(feature = "tokio-semaphore")]
+pub use tokio_semaphore::{
+    blocking_permit_future,
+    BlockingPermit,
+    BlockingPermitFuture,
+};
 
-/// A future which resolves to a [`BlockingPermit`], created via the
-/// [`blocking_permit_future`] function.
-#[must_use = "must be `.await`ed or polled"]
-#[derive(Debug)]
-pub struct BlockingPermitFuture<'a> {
-    semaphore: &'a Semaphore,
-    acquire: Option<SemaphoreAcquireFuture<'a>>
-}
+/// An async-aware semaphore for constraining the number of concurrent blocking
+/// operations.
+#[cfg(feature = "tokio-semaphore")]
+pub use tokio::sync::Semaphore;
 
-impl<'a> BlockingPermitFuture<'a> {
-    /// Construct given `Semaphore` reference.
-    pub fn new(semaphore: &Semaphore) -> BlockingPermitFuture<'_>
-    {
-        BlockingPermitFuture {
-            semaphore,
-            acquire: None
-        }
-    }
+#[cfg(not(feature = "tokio-semaphore"))]
+mod intrusive;
 
-    /// Make a `Sync` version of this future by wrapping with a `Mutex`.
-    pub fn make_sync(self) -> SyncBlockingPermitFuture<'a> {
-        SyncBlockingPermitFuture {
-            futr: Mutex::new(self)
-        }
-    }
-}
+#[cfg(not(feature = "tokio-semaphore"))]
+#[cfg(feature = "futures-intrusive")]
+pub use intrusive::{
+    blocking_permit_future,
+    BlockingPermit,
+    BlockingPermitFuture,
+};
 
-impl<'a> Future for BlockingPermitFuture<'a> {
-    type Output = Result<BlockingPermit<'a>, Canceled>;
+/// An async-aware semaphore for constraining the number of concurrent blocking
+/// operations.
+#[cfg(not(feature = "tokio-semaphore"))]
+#[cfg(feature = "futures-intrusive")]
+pub use futures_intrusive::sync::Semaphore;
 
-    // Note that with this implementation, `Canceled` is never returned. For
-    // maximum future flexibilty however (like reverting to tokio's Semaphore)
-    // we keep the error type in place.
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
-        -> Poll<Self::Output>
-    {
-        // Safety: FIXME
-        let this = unsafe { self.get_unchecked_mut() };
-        let acq = if let Some(ref mut af) = this.acquire {
-            af
-        } else {
-            this.acquire = Some(this.semaphore.acquire(1));
-            this.acquire.as_mut().unwrap()
-        };
-        let acq = unsafe { Pin::new_unchecked(acq) };
-        match acq.poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(releaser) => Poll::Ready(Ok(BlockingPermit {
-                releaser,
-                entered: Cell::new(false)
-            })),
-       }
-    }
-}
-
-impl<'a> FusedFuture for BlockingPermitFuture<'a> {
-    fn is_terminated(&self) -> bool {
-        if let Some(ref ff) = self.acquire {
-            ff.is_terminated()
-        } else {
-            false
-        }
-    }
-}
-
-/// A `Sync` wrapper available via [`BlockingPermitFuture::make_sync`].
-#[must_use = "must be `.await`ed or polled"]
-#[derive(Debug)]
-pub struct SyncBlockingPermitFuture<'a> {
-    futr: Mutex<BlockingPermitFuture<'a>>
-}
-
-impl<'a> SyncBlockingPermitFuture<'a> {
-    /// Construct given `Semaphore` reference.
-    pub fn new(semaphore: &'a Semaphore) -> SyncBlockingPermitFuture<'a>
-    {
-        SyncBlockingPermitFuture {
-            futr: Mutex::new(BlockingPermitFuture::new(semaphore))
-        }
-    }
-}
-
-impl<'a> Future for SyncBlockingPermitFuture<'a> {
-    type Output = Result<BlockingPermit<'a>, Canceled>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
-        -> Poll<Self::Output>
-    {
-        match self.futr.try_lock() {
-            Ok(mut guard) => {
-                let futr = unsafe { Pin::new_unchecked(&mut *guard) };
-                futr.poll(cx)
-            }
-            Err(TryLockError::Poisoned(_)) => Poll::Ready(Err(Canceled)),
-            Err(TryLockError::WouldBlock) => {
-                cx.waker().wake_by_ref(); //any spin should be brief
-                Poll::Pending
-            }
-        }
-    }
-}
+// Note: these methods are common to both above struct definitions
 
 impl<'a> BlockingPermit<'a> {
     /// Enter the blocking section of code on the current thread.
@@ -168,6 +87,15 @@ impl<'a> BlockingPermit<'a> {
     }
 }
 
+impl<'a> BlockingPermitFuture<'a> {
+    /// Make a `Sync` version of this future by wrapping with a `Mutex`.
+    pub fn make_sync(self) -> SyncBlockingPermitFuture<'a> {
+        SyncBlockingPermitFuture {
+            futr: Mutex::new(self)
+        }
+    }
+}
+
 impl<'a> Drop for BlockingPermit<'a> {
     fn drop(&mut self) {
         if self.entered.get() {
@@ -178,19 +106,39 @@ impl<'a> Drop for BlockingPermit<'a> {
     }
 }
 
-/// Request a permit to perform a blocking operation on the current thread.
-///
-/// The returned future attempts to obtain a permit from the provided
-/// `Semaphore` and outputs a `BlockingPermit` which can then be
-/// [`run`](BlockingPermit::run) to allow blocking or "long running"
-/// operation, while the `BlockingPermit` remains in scope. If no permits are
-/// immediately available, then the current task context will be notified when
-/// one becomes available.
-pub fn blocking_permit_future(semaphore: &Semaphore)
-    -> BlockingPermitFuture<'_>
-{
-    BlockingPermitFuture {
-        semaphore,
-        acquire: None
+/// A `Sync` wrapper available via [`BlockingPermitFuture::make_sync`].
+#[must_use = "must be `.await`ed or polled"]
+#[derive(Debug)]
+pub struct SyncBlockingPermitFuture<'a> {
+    futr: Mutex<BlockingPermitFuture<'a>>
+}
+
+impl<'a> SyncBlockingPermitFuture<'a> {
+    /// Construct given `Semaphore` reference.
+    pub fn new(semaphore: &'a Semaphore) -> SyncBlockingPermitFuture<'a>
+    {
+        SyncBlockingPermitFuture {
+            futr: Mutex::new(BlockingPermitFuture::new(semaphore))
+        }
+    }
+}
+
+impl<'a> Future for SyncBlockingPermitFuture<'a> {
+    type Output = Result<BlockingPermit<'a>, Canceled>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
+        -> Poll<Self::Output>
+    {
+        match self.futr.try_lock() {
+            Ok(mut guard) => {
+                let futr = unsafe { Pin::new_unchecked(&mut *guard) };
+                futr.poll(cx)
+            }
+            Err(TryLockError::Poisoned(_)) => Poll::Ready(Err(Canceled)),
+            Err(TryLockError::WouldBlock) => {
+                cx.waker().wake_by_ref(); //any spin should be brief
+                Poll::Pending
+            }
+        }
     }
 }
