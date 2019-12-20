@@ -1,4 +1,5 @@
-// TODO: This is currently just a subset of potential usage from tokio_fs
+// TODO: This is currently just a subset of potential usage from tokio_fs,
+// retained for testing.
 
 use std::fs;
 use std::io;
@@ -6,10 +7,10 @@ use std::path::Path;
 
 use lazy_static::lazy_static;
 
-use crate::{dispatch_or_permit, Semaphore};
+use crate::{dispatch_or_permit, Semaphore, Semaphorish};
 
 lazy_static! {
-    pub static ref BLOCKING_SET: Semaphore = Semaphore::new(true, 1);
+    static ref BLOCKING_SET: Semaphore = Semaphore::default_new(1);
 }
 
 /// Creates a new, empty directory at the provided path
@@ -71,7 +72,8 @@ mod tests {
 
         {
             let mut rt = tokio::runtime::Builder::new()
-                .num_threads(2)
+                .core_threads(2)
+                .max_threads(2)
                 .threaded_scheduler()
                 .build()
                 .unwrap();

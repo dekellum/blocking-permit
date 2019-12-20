@@ -14,8 +14,11 @@
 mod dispatch;
 mod dispatch_pool;
 mod errors;
+
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 mod permit;
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 #[macro_use] mod macros;
 
 pub use dispatch::{
@@ -32,19 +35,19 @@ pub use dispatch_pool::{DispatchPool, DispatchPoolBuilder};
 
 pub use errors::Canceled;
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 pub use permit::{
     blocking_permit_future,
     BlockingPermit,
     BlockingPermitFuture,
+    Semaphore,
+    Semaphorish,
+    SyncBlockingPermitFuture,
 };
-
-/// An async-aware semaphore for constraining the number of concurrent blocking
-/// operations.
-///
-pub use futures_intrusive::sync::Semaphore;
 
 #[cfg(test)]
 mod tests;
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 #[cfg(test)]
 mod fs;

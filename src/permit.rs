@@ -1,61 +1,35 @@
-use std::cell::Cell;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-
-use futures_core::future::FusedFuture;
-use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
 use log::{warn, trace};
 
-use crate::{Canceled, Semaphore};
+#[cfg(feature = "tokio-semaphore")]
+mod tokio_semaphore;
 
-/// A scoped permit for blocking operations. When dropped (out of scope or
-/// manually), the permit is released.
-#[must_use = "must call `enter` before blocking"]
-#[derive(Debug)]
-pub struct BlockingPermit<'a> {
-    releaser: SemaphoreReleaser<'a>,
-    entered: Cell<bool>
+#[cfg(feature = "tokio-semaphore")]
+pub use tokio_semaphore::{
+    BlockingPermit,
+    BlockingPermitFuture,
+    Semaphore,
+    SyncBlockingPermitFuture,
+};
+
+#[cfg(not(feature = "tokio-semaphore"))]
+#[cfg(feature = "futures-intrusive")]
+mod intrusive;
+
+#[cfg(not(feature = "tokio-semaphore"))]
+#[cfg(feature = "futures-intrusive")]
+pub use intrusive::{
+    BlockingPermit,
+    BlockingPermitFuture,
+    Semaphore,
+    SyncBlockingPermitFuture,
+};
+
+pub trait Semaphorish {
+    /// Construct given number of permits. Choose _fair_ if that is an option.
+    fn default_new(permits: usize) -> Self;
 }
 
-/// A future which resolves to a [`BlockingPermit`], created via the
-/// [`blocking_permit_future`] function.
-#[must_use = "must be `.await`ed or polled"]
-#[derive(Debug)]
-pub struct BlockingPermitFuture<'a> {
-    acquire: SemaphoreAcquireFuture<'a>
-}
-
-impl<'a> Future for BlockingPermitFuture<'a> {
-    type Output = Result<BlockingPermit<'a>, Canceled>;
-
-    // Note that with this implementation, `Canceled` is never returned. For
-    // maximum future flexibilty however (like reverting to tokio's Semaphore)
-    // we keep the error type in place.
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
-        -> Poll<Self::Output>
-    {
-        // Safety: the self Pin means our self address is stable, and acquire
-        // is furthermore never moved.
-        let acq = unsafe {
-            Pin::new_unchecked(&mut self.get_unchecked_mut().acquire)
-        };
-        match acq.poll(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(releaser) => Poll::Ready(Ok(BlockingPermit {
-                releaser,
-                entered: Cell::new(false)
-            })),
-       }
-    }
-}
-
-impl<'a> FusedFuture for BlockingPermitFuture<'a> {
-    fn is_terminated(&self) -> bool {
-        self.acquire.is_terminated()
-    }
-}
+// Note: these methods are common to both above struct definitions
 
 impl<'a> BlockingPermit<'a> {
     /// Enter the blocking section of code on the current thread.
@@ -63,8 +37,9 @@ impl<'a> BlockingPermit<'a> {
     /// This is a secondary step from completion of the
     /// [`BlockingPermitFuture`] as it must be call on the same thread,
     /// immediately before the blocking section.  The blocking permit should
-    /// then be dropped at the end of the blocking section. With the
-    /// _tokio-threaded_ feature, `run` should be used instead.
+    /// then be dropped at the end of the blocking section. If the
+    /// _tokio-threaded_ feature is or might be used, `run` should be
+    /// used instead.
     ///
     /// ## Panics
     ///
@@ -85,14 +60,20 @@ impl<'a> BlockingPermit<'a> {
     /// ## Panics
     ///
     /// Panics if this `BlockingPermit` has already been entered.
-    #[cfg(feature="tokio-threaded")]
     pub fn run<F, T>(self, f: F) -> T
         where F: FnOnce() -> T
     {
         if self.entered.replace(true) {
             panic!("BlockingPermit::run (or enter) called twice!");
         }
-        tokio::task::block_in_place(f)
+
+        #[cfg(feature="tokio-threaded")] {
+            tokio::task::block_in_place(f)
+        }
+
+        #[cfg(not(feature="tokio-threaded"))] {
+            f()
+        }
     }
 }
 
@@ -117,7 +98,5 @@ impl<'a> Drop for BlockingPermit<'a> {
 pub fn blocking_permit_future(semaphore: &Semaphore)
     -> BlockingPermitFuture<'_>
 {
-    BlockingPermitFuture {
-        acquire: semaphore.acquire(1)
-    }
+    BlockingPermitFuture::new(semaphore)
 }

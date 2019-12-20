@@ -1,3 +1,4 @@
+#![cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 #![warn(rust_2018_idioms)]
 
 #![feature(test)]
@@ -19,11 +20,13 @@ use blocking_permit::{
     blocking_permit_future,
     dispatch_rx, DispatchPool,
     deregister_dispatch_pool, register_dispatch_pool,
-    Semaphore
+    Semaphore,
+    Semaphorish,
 };
 
 lazy_static! {
-    static ref TEST_SET: Semaphore = Semaphore::new(true, 20);
+    static ref DEFAULT_SET: Semaphore = Semaphore::default_new(4);
+    static ref SLEEP_SET: Semaphore = Semaphore::default_new(20);
 }
 
 #[cfg(feature="tokio-threaded")]
@@ -34,7 +37,8 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
         .create();
 
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(4)
+        .core_threads(4)
+        .max_threads(4)
         .threaded_scheduler()
         .on_thread_start(move || {
             register_dispatch_pool(pool.clone());
@@ -48,7 +52,7 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&DEFAULT_SET)
                     .await
                     .unwrap();
                 p.enter();
@@ -70,7 +74,8 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
 #[bench]
 fn noop_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(4)
+        .core_threads(4)
+        .max_threads(4+4+1)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -78,7 +83,7 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&DEFAULT_SET)
                     .await
                     .unwrap();
                 p.enter();
@@ -100,7 +105,8 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
 #[bench]
 fn noop_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(4)
+        .core_threads(4)
+        .max_threads(4+4+1)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -108,7 +114,8 @@ fn noop_threaded_in_place(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&DEFAULT_SET)
+                    .make_sync()
                     .await
                     .unwrap();
                 let r = p.run(|| 41);
@@ -134,7 +141,7 @@ fn noop_local_dispatch_rx(b: &mut Bencher) {
         let sp = pool.spawner();
         for _ in 0..100 {
             sp.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&DEFAULT_SET)
                     .await
                     .unwrap();
                 p.enter();
@@ -157,7 +164,8 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
         .create();
 
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(4)
+        .core_threads(4)
+        .max_threads(4)
         .threaded_scheduler()
         .on_thread_start(move || {
             register_dispatch_pool(pool.clone());
@@ -171,7 +179,7 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&DEFAULT_SET)
                     .await
                     .unwrap();
                 p.enter();
@@ -198,7 +206,8 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
 #[bench]
 fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(4)
+        .core_threads(4)
+        .max_threads(4+4+1)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -206,7 +215,7 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&DEFAULT_SET)
                     .await
                     .unwrap();
                 p.enter();
@@ -228,7 +237,8 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
 #[bench]
 fn r_expensive_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(4)
+        .core_threads(4)
+        .max_threads(4+4+1)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -236,7 +246,8 @@ fn r_expensive_threaded_in_place(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&DEFAULT_SET)
+                    .make_sync()
                     .await
                     .unwrap();
                 let r = p.run(|| expensive_comp());
@@ -262,7 +273,7 @@ fn r_expensive_local_dispatch_rx(b: &mut Bencher) {
         let sp = pool.spawner();
         for _ in 0..100 {
             sp.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&DEFAULT_SET)
                     .await
                     .unwrap();
                 p.enter();
@@ -285,7 +296,8 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
         .create();
 
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(4)
+        .core_threads(4)
+        .max_threads(4)
         .threaded_scheduler()
         .on_thread_start(move || {
             register_dispatch_pool(pool.clone());
@@ -299,7 +311,7 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&SLEEP_SET)
                     .await
                     .unwrap();
                 p.enter();
@@ -321,7 +333,8 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
 #[bench]
 fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(4)
+        .core_threads(4)
+        .max_threads(4+20+1)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -329,7 +342,7 @@ fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&SLEEP_SET)
                     .await
                     .unwrap();
                 p.enter();
@@ -351,7 +364,8 @@ fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
 #[bench]
 fn sleep_threaded_in_place(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(20)
+        .core_threads(4)
+        .max_threads(4+20+1)
         .threaded_scheduler()
         .build()
         .unwrap();
@@ -359,7 +373,8 @@ fn sleep_threaded_in_place(b: &mut Bencher) {
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&SLEEP_SET)
+                    .make_sync()
                     .await
                     .unwrap();
                 let r = p.run(|| random_sleep());
@@ -385,7 +400,7 @@ fn sleep_local_dispatch_rx(b: &mut Bencher) {
         let sp = pool.spawner();
         for _ in 0..100 {
             sp.spawn(async {
-                let p = blocking_permit_future(&TEST_SET)
+                let p = blocking_permit_future(&SLEEP_SET)
                     .await
                     .unwrap();
                 p.enter();

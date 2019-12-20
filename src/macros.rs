@@ -27,13 +27,7 @@
             }
             $crate::DispatchRx::NotRegistered(cl) => {
                 let permit = $crate::blocking_permit_future($semaphore) .await?;
-                #[cfg(not(feature="tokio-threaded"))] {
-                    permit.enter();
-                    cl()
-                }
-                #[cfg(feature="tokio-threaded")] {
-                    permit.run(cl)
-                }
+                permit.run(cl)
             }
         }
     }};

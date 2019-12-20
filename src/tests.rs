@@ -1,44 +1,66 @@
-use std::future::Future;
 use std::panic::UnwindSafe;
-use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::task::{Context, Poll};
-use std::thread;
-use std::time::Duration;
+
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::atomic::{AtomicUsize, Ordering},
+    task::{Context, Poll},
+    thread,
+    time::Duration
+};
 
 use futures_executor as futr_exec;
 use futures_util::future::FutureExt;
 use futures_util::task::SpawnExt;
 
 #[cfg(feature="tokio-threaded")]
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 use futures_util::stream::{FuturesUnordered, StreamExt};
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 use lazy_static::lazy_static;
-use log::{debug, info};
+
+use log::debug;
+
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
+use log::info;
 
 use crate::*;
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 lazy_static! {
-    static ref TEST_SET: Semaphore = Semaphore::new(true, 1);
+    static ref TEST_SET: Semaphore = Semaphore::default_new(1);
 }
 
-fn is_send<T: Send>() -> bool { true }
+#[allow(dead_code)] fn is_send<T: Send>() -> bool { true }
+#[allow(dead_code)] fn is_sync<T: Sync>() -> bool { true }
 
-#[allow(dead_code)]
-fn is_unwind_safe<T: UnwindSafe>() -> bool { true }
+#[allow(dead_code)] fn is_unwind_safe<T: UnwindSafe>() -> bool { true }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 #[test]
 fn test_blocking_permit_traits() {
     assert!(is_send::<BlockingPermit<'_>>());
 
     // TODO: its not UnwindSafe because internals are not.  Does it need to be?
     // assert!(is_unwind_safe::<BlockingPermit<'_>>());
+
+    assert!(is_send::<BlockingPermitFuture<'_>>());
+
+    #[cfg(features = "tokio-semaphore")] {
+        assert!(is_sync::<BlockingPermitFuture<'_>>());
+    }
+
+    assert!(is_send::<SyncBlockingPermitFuture<'_>>());
+    assert!(is_sync::<SyncBlockingPermitFuture<'_>>());
 }
 
 fn log_init() {
     env_logger::builder().is_test(true).try_init().ok();
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 fn register_dispatch_pool() {
     let pool = DispatchPool::builder()
         .pool_size(2)
@@ -49,6 +71,7 @@ fn register_dispatch_pool() {
     crate::register_dispatch_pool(pool);
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 fn maybe_register_dispatch_pool() {
     #[cfg(feature="current-thread")] {
         register_dispatch_pool();
@@ -167,22 +190,26 @@ fn aborts_dispatch_panic() {
 
 /// Test of a manually-constructed future which uses `blocking_permit_future`
 /// and `dispatch_rx`.
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 struct TestFuture<'a> {
     delegate: Delegate<'a>,
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 enum Delegate<'a> {
     Dispatch(Dispatched<usize>),
     Permit(BlockingPermitFuture<'a>),
     None
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 impl<'a> TestFuture<'a> {
     fn new() -> Self {
         TestFuture { delegate: Delegate::None }
     }
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 impl<'a> Future for TestFuture<'a> {
     type Output = Result<usize, Canceled>;
 
@@ -236,6 +263,7 @@ impl<'a> Future for TestFuture<'a> {
     }
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 #[test]
 fn manual_future() {
     log_init();
@@ -245,6 +273,7 @@ fn manual_future() {
     deregister_dispatch_pool();
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 #[test]
 fn async_block_await_semaphore() {
     log_init();
@@ -275,9 +304,11 @@ fn async_block_await_semaphore() {
     deregister_dispatch_pool();
 }
 
+#[cfg(feature = "futures-intrusive")]
 #[test]
 fn async_block_with_macro_semaphore() {
     log_init();
+    register_dispatch_pool();
     let task = async {
         dispatch_or_permit!(
             &TEST_SET,
@@ -287,12 +318,12 @@ fn async_block_with_macro_semaphore() {
             }
         )
     };
-    maybe_register_dispatch_pool();
     let val = futr_exec::block_on(task).expect("task success");
     assert_eq!(val, 41);
     deregister_dispatch_pool();
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 #[test]
 fn test_futr_local_pool() {
     log_init();
@@ -319,17 +350,21 @@ fn test_futr_local_pool() {
     deregister_dispatch_pool();
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 #[cfg(feature="tokio-threaded")]
 #[test]
 fn test_tokio_threadpool() {
     log_init();
+
     lazy_static! {
-        static ref TEST_SET: Semaphore = Semaphore::new(true, 3);
+        static ref TEST_SET: Semaphore = Semaphore::default_new(3);
     }
+
     static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
     let mut rt = tokio::runtime::Builder::new()
-        .num_threads(3)
+        .core_threads(3)
+        .max_threads(3)
         .threaded_scheduler()
         .build()
         .unwrap();
