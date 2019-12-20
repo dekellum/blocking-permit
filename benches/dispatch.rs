@@ -115,6 +115,7 @@ fn noop_threaded_in_place(b: &mut Bencher) {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
                 let p = blocking_permit_future(&DEFAULT_SET)
+                    .make_sync()
                     .await
                     .unwrap();
                 let r = p.run(|| 41);
@@ -246,6 +247,7 @@ fn r_expensive_threaded_in_place(b: &mut Bencher) {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
                 let p = blocking_permit_future(&DEFAULT_SET)
+                    .make_sync()
                     .await
                     .unwrap();
                 let r = p.run(|| expensive_comp());
@@ -372,6 +374,7 @@ fn sleep_threaded_in_place(b: &mut Bencher) {
         let futures: FuturesUnordered<_> = (0..100).map(|_| {
             rt.spawn(async {
                 let p = blocking_permit_future(&SLEEP_SET)
+                    .make_sync()
                     .await
                     .unwrap();
                 let r = p.run(|| random_sleep());
