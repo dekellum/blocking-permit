@@ -49,6 +49,8 @@ tokio-semaphore=["tokio", "tokio/sync"]
 
 current-thread=[] # testing hack only
 
+tangential=[] # less interesting benchmarks
+
 [profile.bench]
 lto = "thin"
 incremental = false
