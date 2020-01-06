@@ -17,7 +17,6 @@ build         = "build.rs"
 futures-core        = { version=">=0.3.1, <0.4" }
 futures-channel     = { version=">=0.3.1, <0.4", optional=true }
 log                 = { version=">=0.4.4, <0.5" }
-crossbeam-channel   = { version=">=0.4.0, <0.5" }
 num_cpus            = { version=">=1.11.1, <1.12" }
 futures-intrusive   = { version=">=0.2.2, <0.3", optional=true }
 tokio               = { version=">=0.2.6, <0.3", optional=true }
