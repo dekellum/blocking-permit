@@ -2,13 +2,12 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Condvar;
-use std::sync::Mutex;
 use std::thread;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use log::{error, trace};
 use num_cpus;
+use parking_lot::{Condvar, Mutex};
 
 /// A specialized thread pool and queue for dispatching _blocking_
 /// (synchronous, long running) operations.
@@ -182,7 +181,7 @@ fn work(
     {
         let ts = Turnstile { index, counter, before_stop };
         let ws = ws; // moved to here so it drops before ts.
-        let mut lock = ws.queue.lock().expect("poisoned lock");
+        let mut lock = ws.queue.lock();
         'worker: loop {
             while let Some(w) = lock.pop_front() {
                 drop(lock);
@@ -206,10 +205,10 @@ fn work(
                     }
                     Work::Terminate => break 'worker,
                 }
-                lock = ws.queue.lock().expect("poisoned lock");
+                lock = ws.queue.lock();
             }
 
-            lock = ws.condvar.wait(lock).expect("poisoned lock");
+            ws.condvar.wait(&mut lock);
         }
     }
 }
@@ -222,7 +221,7 @@ impl Default for DispatchPool {
 
 impl Sender {
     fn send(&self, work: Work) -> Option<Work> {
-        let mut queue = self.ws.queue.lock().expect("poisoned lock");
+        let mut queue = self.ws.queue.lock();
         if queue.len() < self.ws.limit {
             queue.push_back(work);
             self.ws.condvar.notify_one();
