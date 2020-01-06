@@ -97,9 +97,9 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
 
 #[cfg(feature="tokio-threaded")]
 #[bench]
-fn noop_threaded_in_place(b: &mut Bencher) {
+fn noop_threaded_permit(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .core_threads(4)
+        .core_threads(4+4)
         .max_threads(4+4)
         .threaded_scheduler()
         .build()
@@ -214,9 +214,9 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
 
 #[cfg(feature="tokio-threaded")]
 #[bench]
-fn r_expensive_threaded_in_place(b: &mut Bencher) {
+fn r_expensive_threaded_permit(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .core_threads(4)
+        .core_threads(4+4)
         .max_threads(4+4)
         .threaded_scheduler()
         .build()
@@ -329,9 +329,9 @@ fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
 
 #[cfg(feature="tokio-threaded")]
 #[bench]
-fn sleep_threaded_in_place(b: &mut Bencher) {
+fn sleep_threaded_permit(b: &mut Bencher) {
     let mut rt = tokio::runtime::Builder::new()
-        .core_threads(4)
+        .core_threads(4+40)
         .max_threads(4+40)
         .threaded_scheduler()
         .build()
@@ -379,7 +379,7 @@ fn sleep_local_dispatch_rx(b: &mut Bencher) {
 }
 
 fn expensive_comp() -> usize {
-    let mut vals: Vec<usize> = (500..600).map(|v| (v % 101)).collect();
+    let mut vals: Vec<usize> = (500..800).map(|v| (v % 101)).collect();
     vals.shuffle(&mut rand::thread_rng());
     vals.sort();
     vals[vals.len() - 1]
