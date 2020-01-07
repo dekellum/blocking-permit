@@ -101,9 +101,9 @@ impl DispatchPool {
 
         match work {
             None => {},
-            // Full, so run here. Panics will propagate
+            // Full, so run here. Panics will propagate.
             Some(Work::Unit(f)) => f(),
-            // Full, so run here. Ignore panics unwinds
+            // Full, so run here. Ignore panic unwinds.
             Some(Work::SafeUnit(af)) => {
                 if catch_unwind(af).is_err() {
                     error!("DispatchPool: panic on calling thread \
