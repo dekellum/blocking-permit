@@ -1,12 +1,13 @@
+use std::collections::VecDeque;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use log::{debug, error, trace};
-use crossbeam_channel as cbch;
+use log::{error, trace};
 use num_cpus;
+use parking_lot::{Condvar, Mutex};
 
 /// A specialized thread pool and queue for dispatching _blocking_
 /// (synchronous, long running) operations.
@@ -20,25 +21,18 @@ use num_cpus;
 ///   construction and terminated on `Drop::drop`.  Consistent memory
 ///   footprint. No warmup required. No per-task thread management overhead.
 ///
-/// * Supports configuration for all crossbeam-channel MPMC queue options
-///   including fixed (bounded), including zero capacity, or an unbounded
-///   queue.
-///
 /// * Configurable panic handling policy: Either catches and logs dispatch
 ///   panics, or aborts the process, on panic unwind.
 ///
-/// * For comparative testing, can also be configured with zero (0) threads.
+/// * Supports fixed (bounded) or unbounded queue length.
 ///
-/// * With zero threads or when the queue is bounded and becomes full,
-///   [`DispatchPool::spawn`] runs the provided task on the calling thread as a
-///   fallback.  This is entirely optional and avoided with default settings of
-///   an unbounded queue and one or more threads. Its most useful for testing
-///   and benchmarking.
+/// * When the queue is bounded and becomes full, [`DispatchPool::spawn`] runs
+///   the provided task on the calling thread as a fallback.
 ///
 /// ## Usage
 ///
-/// By default, the pool uses an unbounded MPMC channel, with the assumption
-/// that resource/capacity is externally constrained, for example via
+/// By default, the pool uses an unbounded queue, with the assumption that
+/// resource/capacity is externally constrained, for example via
 /// [`Semaphore`](crate::Semaphore). Once constructed, a fixed number of
 /// threads are spawned and the instance acts as a handle to the pool. This may
 /// be inexpensively cloned for additional handles to the same pool.
@@ -51,9 +45,13 @@ pub struct DispatchPool {
     ignore_panics: bool,
 }
 
+// `Arc`s may look a bit redundant above and below, but `Sender` has the `Drop`
+// implementation, and counter and ws are used/moved independently in the work
+// loop.
+
 #[derive(Debug)]
 struct Sender {
-    tx: cbch::Sender<Work>,
+    ws: Arc<WorkState>,
     counter: Arc<AtomicUsize>,
 }
 
@@ -72,7 +70,6 @@ pub struct DispatchPoolBuilder {
 }
 
 enum Work {
-    Count,
     Unit(Box<dyn FnOnce() + Send>),
     SafeUnit(AssertUnwindSafe<Box<dyn FnOnce() + Send>>),
     Terminate,
@@ -94,8 +91,7 @@ impl DispatchPool {
     /// This first attempts to send to the associated queue, which will always
     /// succeed if _unbounded_, e.g. no [`DispatchPoolBuilder::queue_length`]
     /// is set, the default. If however the queue is _bounded_ and at capacity,
-    /// or the pool is configured with zero (`pool_size`) threads, then the
-    /// task is directly run by the _calling_ thread.
+    /// then the task is directly run by the _calling_ thread.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
         let work = if self.ignore_panics {
             Work::SafeUnit(AssertUnwindSafe(f))
@@ -103,26 +99,14 @@ impl DispatchPool {
             Work::Unit(f)
         };
 
-        let work = match self.sender.tx.try_send(work) {
-            Ok(()) => return,
-            Err(cbch::TrySendError::Disconnected(w)) => {
-                // Rx side is dropped if zero pool threads
-                // Should be expected so
-                w
-            }
-            Err(cbch::TrySendError::Full(w)) => {
-                debug!("DispathPool::spawn failed to send: full; \
-                        running on calling thread!");
-                w
-            }
-        };
+        let work = self.sender.send(work);
 
-        // Failed to send, so run on this calling thread. Ignore panics unwinds
-        // if requested, but no need to abort otherwise (as that panic will
-        // propagate).
         match work {
-            Work::Unit(f) => f(),
-            Work::SafeUnit(af) => {
+            None => {},
+            // Full, so run here. Panics will propagate.
+            Some(Work::Unit(f)) => f(),
+            // Full, so run here. Ignore panic unwinds.
+            Some(Work::SafeUnit(af)) => {
                 if catch_unwind(af).is_err() {
                     error!("DispatchPool: panic on calling thread \
                             was caught and ignored");
@@ -132,6 +116,7 @@ impl DispatchPool {
                 // Safety: work is constructed above as Unit or SafeUnit only.
                 unsafe { std::hint::unreachable_unchecked() }
             }
+
         }
     }
 }
@@ -171,12 +156,25 @@ impl Drop for AbortOnPanic {
     }
 }
 
+struct WorkState {
+    queue: Mutex<VecDeque<Work>>,
+    limit: usize,
+    condvar: Condvar,
+}
+
+impl fmt::Debug for WorkState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WorkState")
+            .finish()
+    }
+}
+
 fn work(
     index: usize,
     counter: Arc<AtomicUsize>,
     after_start: Option<AroundFn>,
     before_stop: Option<AroundFn>,
-    rx: cbch::Receiver<Work>)
+    ws: Arc<WorkState>)
 {
     if let Some(ref asfn) = after_start {
         asfn(index);
@@ -185,32 +183,30 @@ fn work(
 
     {
         let ts = Turnstile { index, counter, before_stop };
-        let rx = rx; // moved to here so it drops before ts.
-        loop {
-            match rx.recv() {
-                Ok(Work::Count) => {
-                    ts.increment();
-                    // In startup phase. Give another thread a chance to take
-                    // the next Work::Count.
-                    thread::yield_now();
-                }
-                Ok(Work::Unit(bfn)) => {
-                    let abort = AbortOnPanic;
-                    bfn();
-                    std::mem::forget(abort);
-                }
-                Ok(Work::SafeUnit(abfn)) => {
-                    if catch_unwind(abfn).is_err() {
-                        error!("DispatchPool: panic on pool \
-                                was caught and ignored");
+        let ws = ws; // moved to here so it drops before ts.
+        let mut lock = ws.queue.lock();
+        ts.increment();
+        'worker: loop {
+            while let Some(w) = lock.pop_front() {
+                drop(lock);
+                match w {
+                    Work::Unit(bfn) => {
+                        let abort = AbortOnPanic;
+                        bfn();
+                        std::mem::forget(abort);
                     }
+                    Work::SafeUnit(abfn) => {
+                        if catch_unwind(abfn).is_err() {
+                            error!("DispatchPool: panic on pool \
+                                    was caught and ignored");
+                        }
+                    }
+                    Work::Terminate => break 'worker,
                 }
-                Ok(Work::Terminate) => break,
-                Err(r) => {
-                    debug_assert!(false, "DispatchPool::recv error {}", r);
-                    error!("DispatchPool::recv error {}", r);
-                }
+                lock = ws.queue.lock();
             }
+
+            ws.condvar.wait(&mut lock);
         }
     }
 }
@@ -221,21 +217,35 @@ impl Default for DispatchPool {
     }
 }
 
+impl Sender {
+    // Send new work, possibly returning same if limit is reached.
+    fn send(&self, work: Work) -> Option<Work> {
+        let mut queue = self.ws.queue.lock();
+        let exempt = match work {
+            Work::Terminate => true,
+            _ => false
+        };
+        if exempt || queue.len() < self.ws.limit {
+            queue.push_back(work);
+            self.ws.condvar.notify_one();
+            None
+        } else {
+            Some(work)
+        }
+    }
+}
+
 impl Drop for Sender {
     fn drop(&mut self) {
         trace!("Sender::drop entered");
         let threads = self.counter.load(Ordering::SeqCst);
-        let mut terms = 0;
         for _ in 0..threads {
-            if let Err(e) = self.tx.try_send(Work::Terminate) {
-                debug!("DispatchPool::(Sender::)drop on terminate send: {}", e);
-                break;
-            }
-            terms += 1;
+            assert!(self.send(Work::Terminate).is_none());
         }
+
         // This intentionally only yields a number of times equivalent to the
-        // termination messages sent, to avoid any risk of hanging.
-        for _ in 0..terms {
+        // termination messages sent, to avoid risk of hanging.
+        for _ in 0..threads {
             let size = self.counter.load(Ordering::SeqCst);
             if size > 0 {
                 trace!("DipatchPool::(Sender::)drop yielding, \
@@ -273,9 +283,8 @@ impl DispatchPoolBuilder {
 
     /// Set the fixed number of threads in the pool.
     ///
-    /// This may be zero, in which case, all tasks are executed on the _calling
-    /// thread_, see [`DispatchPool::spawn`]. This is allowed primarly as a
-    /// convenience for testing and comparative benchmarking.
+    /// This must at least be one (1) thread, asserted. However the value is
+    /// ignored (and no threads are spawned) if queue_length is zero (0).
     ///
     /// Default: the number of logical CPU's minus one, but one at minimum:
     ///
@@ -291,6 +300,7 @@ impl DispatchPoolBuilder {
     /// e.g. Intel hyper-threading) or scheduler affinity. Zero (0) detected
     /// CPUs is likely an error.
     pub fn pool_size(&mut self, size: usize) -> &mut Self {
+        assert!(size > 0);
         self.pool_size = Some(size);
         self
     }
@@ -298,15 +308,11 @@ impl DispatchPoolBuilder {
     /// Set the length (aka maximum capacity or depth) of the associated
     /// dispatch task queue.
     ///
-    /// Note that if this length is ever exceeded, tasks will be executed on
-    /// the _calling thread_, see [`DispatchPool::spawn`].  A length of
-    /// zero (0) is an accepted value, and guaruntees a task will be run
-    /// _immediately_ by a pool thread, or the calling thread.
+    /// The length may be zero, in which case the pool is always considered
+    /// _full_ and no threads are spawned.  If the queue is ever _full_, tasks
+    /// will be executed on the _calling thread_, see [`DispatchPool::spawn`].
     ///
-    /// If pool_size is set to zero (0) threads this setting is ignored and no
-    /// queue is used.
-    ///
-    /// Default: unbounded
+    /// Default: unbounded (unlimited)
     pub fn queue_length(&mut self, length: usize) -> &mut Self {
         self.queue_length = Some(length);
         self
@@ -374,7 +380,10 @@ impl DispatchPoolBuilder {
     /// configuration.
     pub fn create(&mut self) -> DispatchPool {
 
-        let pool_size = if let Some(size) = self.pool_size {
+        let pool_size = if let Some(0) = self.queue_length {
+            // Zero pool size if zero queue length
+            0
+        } else if let Some(size) = self.pool_size {
             size
         } else {
             let mut size = num_cpus::get();
@@ -387,15 +396,6 @@ impl DispatchPoolBuilder {
             size
         };
 
-        let (tx, rx) = if pool_size == 0 {
-            // If no threads, then for safety, we also don't want to queue.
-            cbch::bounded(0)
-        } else if let Some(len) = self.queue_length {
-            cbch::bounded(len)
-        } else {
-            cbch::unbounded()
-        };
-
         static POOL_CNT: AtomicUsize = AtomicUsize::new(0);
         let name_prefix = if let Some(ref prefix) = self.name_prefix {
             prefix.to_owned()
@@ -405,15 +405,29 @@ impl DispatchPoolBuilder {
                 POOL_CNT.fetch_add(1, Ordering::SeqCst))
         };
 
-        let sender = Sender {
-            tx,
-            counter: Arc::new(AtomicUsize::new(0))
+        let ws = if let Some(l) = self.queue_length {
+            Arc::new(WorkState {
+                queue: Mutex::new(VecDeque::with_capacity(l)),
+                limit: l,
+                condvar: Condvar::new(),
+            })
+        } else {
+            Arc::new(WorkState {
+                queue: Mutex::new(VecDeque::with_capacity(pool_size*2)),
+                limit: usize::max_value(),
+                condvar: Condvar::new()
+            })
         };
+
+        let sender = Arc::new(Sender {
+            ws: ws.clone(),
+            counter: Arc::new(AtomicUsize::new(0))
+        });
 
         for i in 0..pool_size {
             let after_start = self.after_start.clone();
             let before_stop = self.before_stop.clone();
-            let rx = rx.clone();
+            let ws = ws.clone();
 
             let mut builder = thread::Builder::new();
             builder = builder.name(format!("{}{}", name_prefix, i));
@@ -422,23 +436,17 @@ impl DispatchPoolBuilder {
             }
             let cnt = sender.counter.clone();
             builder
-                .spawn(move || work(i, cnt, after_start, before_stop, rx))
+                .spawn(move || work(i, cnt, after_start, before_stop, ws))
                 .expect("DispatchPoolBuilder::create thread spawn");
-
-            // Send a task to count the new thread, possibly blocking if
-            // bounded, until _some_ thread is available.
-            sender.tx.send(Work::Count).expect("success blank");
         }
 
-        // Wait until counter reaches pool size. This is not particularly a
-        // guaruntee of _all_ threads, but does guaruntee _one_ thread,
-        // which is material for the zero queue length case.
+        // Wait until counter reaches pool size.
         while sender.counter.load(Ordering::SeqCst) < pool_size {
             thread::yield_now();
         }
 
         DispatchPool {
-            sender: Arc::new(sender),
+            sender,
             ignore_panics: self.ignore_panics,
         }
     }
