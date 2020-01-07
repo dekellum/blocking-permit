@@ -110,8 +110,8 @@ impl DispatchPool {
                 }
             }
             _ => {
-                 // Safety: work is constructed above as Unit or SafeUnit only.
-                 unsafe { std::hint::unreachable_unchecked() }
+                // Safety: work is constructed above as Unit or SafeUnit only.
+                unsafe { std::hint::unreachable_unchecked() }
             }
 
         }
