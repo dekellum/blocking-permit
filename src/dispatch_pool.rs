@@ -409,7 +409,7 @@ impl DispatchPoolBuilder {
             })
         } else {
             Arc::new(WorkState {
-                queue: Mutex::new(VecDeque::new()),
+                queue: Mutex::new(VecDeque::with_capacity(pool_size*2)),
                 limit: usize::max_value(),
                 condvar: Condvar::new()
             })
