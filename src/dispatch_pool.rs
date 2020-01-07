@@ -220,9 +220,15 @@ impl Default for DispatchPool {
 }
 
 impl Sender {
+    // Send new work, possibly returning same if limit is reached.
     fn send(&self, work: Work) -> Option<Work> {
         let mut queue = self.ws.queue.lock();
-        if queue.len() < self.ws.limit {
+        let exempt = match work {
+            Work::Count => true,
+            Work::Terminate => true,
+            _ => false
+        };
+        if exempt || queue.len() < self.ws.limit {
             queue.push_back(work);
             self.ws.condvar.notify_one();
             None
@@ -236,15 +242,10 @@ impl Drop for Sender {
     fn drop(&mut self) {
         trace!("Sender::drop entered");
         let threads = self.counter.load(Ordering::SeqCst);
-        let mut terms = 0;
         for _ in 0..threads {
-            if self.send(Work::Terminate).is_none() {
-                terms += 1;
-            }
+            assert!(self.send(Work::Terminate).is_none());
         }
-        // This intentionally only yields a number of times equivalent to the
-        // termination messages sent, to avoid any risk of hanging.
-        for _ in 0..terms {
+        for _ in 0..threads {
             let size = self.counter.load(Ordering::SeqCst);
             if size > 0 {
                 trace!("DipatchPool::(Sender::)drop yielding, \
@@ -438,11 +439,8 @@ impl DispatchPoolBuilder {
                 .spawn(move || work(i, cnt, after_start, before_stop, ws))
                 .expect("DispatchPoolBuilder::create thread spawn");
 
-            // Send a task to count the new thread, possibly failing if
-            // bounded and full, and retrying.
-            while sender.send(Work::Count).is_some() {
-                thread::yield_now();
-            }
+            // Send a task to count the new thread
+            assert!(sender.send(Work::Count).is_none());
         }
 
         // Wait until counter reaches pool size. This is not particularly a
