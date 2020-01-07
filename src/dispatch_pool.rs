@@ -45,6 +45,10 @@ pub struct DispatchPool {
     ignore_panics: bool,
 }
 
+// `Arc`s may look a bit redundant above and below, but `Sender` has the `Drop`
+// implementation, and counter and ws are used/moved independently in the work
+// loop.
+
 #[derive(Debug)]
 struct Sender {
     ws: Arc<WorkState>,
