@@ -21,14 +21,13 @@ use parking_lot::{Condvar, Mutex};
 ///   construction and terminated on `Drop::drop`.  Consistent memory
 ///   footprint. No warmup required. No per-task thread management overhead.
 ///
-/// * Supports fixed (bounded) or unbounded queue length.
-///
 /// * Configurable panic handling policy: Either catches and logs dispatch
 ///   panics, or aborts the process, on panic unwind.
 ///
+/// * Supports fixed (bounded) or unbounded queue length.
+///
 /// * When the queue is bounded and becomes full, [`DispatchPool::spawn`] runs
-///   the provided task on the calling thread as a fallback.  This is entirely
-///   optional and avoided with default settings of an unbounded queue.
+///   the provided task on the calling thread as a fallback.
 ///
 /// ## Usage
 ///
@@ -42,11 +41,11 @@ use parking_lot::{Condvar, Mutex};
 /// are more appropriate for testing than production use.
 #[derive(Clone)]
 pub struct DispatchPool {
-    sender: Sender,
+    sender: Arc<Sender>,
     ignore_panics: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Sender {
     ws: Arc<WorkState>,
     counter: Arc<AtomicUsize>,
@@ -420,10 +419,10 @@ impl DispatchPoolBuilder {
             })
         };
 
-        let sender = Sender {
+        let sender = Arc::new(Sender {
             ws: ws.clone(),
             counter: Arc::new(AtomicUsize::new(0))
-        };
+        });
 
         for i in 0..pool_size {
             let after_start = self.after_start.clone();
