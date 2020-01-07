@@ -66,7 +66,6 @@ pub struct DispatchPoolBuilder {
 }
 
 enum Work {
-    Count,
     Unit(Box<dyn FnOnce() + Send>),
     SafeUnit(AssertUnwindSafe<Box<dyn FnOnce() + Send>>),
     Terminate,
@@ -182,16 +181,11 @@ fn work(
         let ts = Turnstile { index, counter, before_stop };
         let ws = ws; // moved to here so it drops before ts.
         let mut lock = ws.queue.lock();
+        ts.increment();
         'worker: loop {
             while let Some(w) = lock.pop_front() {
                 drop(lock);
                 match w {
-                    Work::Count => {
-                        ts.increment();
-                        // In startup phase. Give another thread a chance to take
-                        // the next Work::Count.
-                        thread::yield_now();
-                    }
                     Work::Unit(bfn) => {
                         let abort = AbortOnPanic;
                         bfn();
@@ -224,7 +218,6 @@ impl Sender {
     fn send(&self, work: Work) -> Option<Work> {
         let mut queue = self.ws.queue.lock();
         let exempt = match work {
-            Work::Count => true,
             Work::Terminate => true,
             _ => false
         };
@@ -245,6 +238,9 @@ impl Drop for Sender {
         for _ in 0..threads {
             assert!(self.send(Work::Terminate).is_none());
         }
+
+        // This intentionally only yields a number of times equivalent to the
+        // termination messages sent, to avoid risk of hanging.
         for _ in 0..threads {
             let size = self.counter.load(Ordering::SeqCst);
             if size > 0 {
@@ -438,13 +434,9 @@ impl DispatchPoolBuilder {
             builder
                 .spawn(move || work(i, cnt, after_start, before_stop, ws))
                 .expect("DispatchPoolBuilder::create thread spawn");
-
-            // Send a task to count the new thread
-            assert!(sender.send(Work::Count).is_none());
         }
 
-        // Wait until counter reaches pool size. This is not particularly a
-        // guaruntee of _all_ threads, but does guaruntee _one_ thread.
+        // Wait until counter reaches pool size.
         while sender.counter.load(Ordering::SeqCst) < pool_size {
             thread::yield_now();
         }
