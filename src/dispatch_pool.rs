@@ -98,11 +98,12 @@ impl DispatchPool {
         };
 
         let work = self.sender.send(work);
+
         match work {
             None => {},
-            // Full, so run on calling thread. Any panic here will propagate
+            // Full, so run here. Panics will propagate
             Some(Work::Unit(f)) => f(),
-            // Ignore panics unwinds if requested
+            // Full, so run here. Ignore panics unwinds
             Some(Work::SafeUnit(af)) => {
                 if catch_unwind(af).is_err() {
                     error!("DispatchPool: panic on calling thread \
