@@ -27,7 +27,7 @@ use parking_lot::{Condvar, Mutex};
 /// * Supports fixed (bounded) or unbounded queue length.
 ///
 /// * When the queue is bounded and becomes full, [`DispatchPool::spawn`] runs
-///   the provided task on the calling thread as a fallback.
+///   the oldest task on the calling thread as a fallback.
 ///
 /// ## Usage
 ///
@@ -91,7 +91,8 @@ impl DispatchPool {
     /// This first attempts to send to the associated queue, which will always
     /// succeed if _unbounded_, e.g. no [`DispatchPoolBuilder::queue_length`]
     /// is set, the default. If however the queue is _bounded_ and at capacity,
-    /// then the task is directly run by the _calling_ thread.
+    /// then this task will be pushed by taking the oldest task, which will be
+    /// run on the calling thread.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
         let work = if self.ignore_panics {
             Work::SafeUnit(AssertUnwindSafe(f))
@@ -218,17 +219,24 @@ impl Default for DispatchPool {
 }
 
 impl Sender {
-    // Send new work, possibly returning same if limit is reached.
+    // Send new work, possibly returning some older work if the queue bound and
+    // the limit is reached.
     fn send(&self, work: Work) -> Option<Work> {
         let mut queue = self.ws.queue.lock();
         let exempt = match work {
             Work::Terminate => true,
             _ => false
         };
-        if exempt || queue.len() < self.ws.limit {
+        let qlen = queue.len();
+        if exempt || qlen < self.ws.limit {
             queue.push_back(work);
             self.ws.condvar.notify_one();
             None
+        } else if qlen > 0 && qlen == self.ws.limit {
+            let old = queue.pop_front().unwrap();
+            queue.push_back(work);
+            self.ws.condvar.notify_one();
+            Some(old)
         } else {
             Some(work)
         }
@@ -309,8 +317,9 @@ impl DispatchPoolBuilder {
     /// dispatch task queue.
     ///
     /// The length may be zero, in which case the pool is always considered
-    /// _full_ and no threads are spawned.  If the queue is ever _full_, tasks
-    /// will be executed on the _calling thread_, see [`DispatchPool::spawn`].
+    /// _full_ and no threads are spawned.  If the queue is ever _full_, the
+    /// oldest tasks will be executed on the _calling thread_, see
+    /// [`DispatchPool::spawn`].
     ///
     /// Default: unbounded (unlimited)
     pub fn queue_length(&mut self, length: usize) -> &mut Self {
