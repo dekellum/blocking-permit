@@ -14,8 +14,8 @@ use parking_lot::{Condvar, Mutex};
 ///
 /// This pool is not an _executor_, has no _waking_ facilities, etc. As
 /// compared with other thread pools supporting `spawn_dispatch` (here called
-/// just `dispatch`), for example in _tokio_ and _async-std_, this pool has
-/// some unique features:
+/// just `dispatch` or `dispatch_rx`), for example in _tokio_ and _async-std_,
+/// this pool has some unique features:
 ///
 /// * A configurable, fixed number of threads created before return from
 ///   construction and terminated on `Drop::drop`.  Consistent memory
@@ -26,8 +26,12 @@ use parking_lot::{Condvar, Mutex};
 ///
 /// * Supports fixed (bounded) or unbounded queue length.
 ///
-/// * When the queue is bounded and becomes full, [`DispatchPool::spawn`] runs
-///   the oldest task on the calling thread as a fallback.
+/// * When the queue is bounded and becomes full, [`DispatchPool::spawn`] pops
+///   the oldest operation off the queue before pushing the newest passed
+///   operation, to ensure space while holding a lock. Then as a fallback it
+///   runs the old operation. Thus we enlist calling threads once the queue
+///   reaches limit, but operation order (at least from perspective of a single
+///   thread) is preserved.
 ///
 /// ## Usage
 ///
@@ -91,8 +95,8 @@ impl DispatchPool {
     /// This first attempts to send to the associated queue, which will always
     /// succeed if _unbounded_, e.g. no [`DispatchPoolBuilder::queue_length`]
     /// is set, the default. If however the queue is _bounded_ and at capacity,
-    /// then this task will be pushed by taking the oldest task, which will be
-    /// run on the calling thread.
+    /// then this task will be pushed after taking the oldest task, which is
+    /// then run on the calling thread.
     pub fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
         let work = if self.ignore_panics {
             Work::SafeUnit(AssertUnwindSafe(f))
@@ -114,7 +118,8 @@ impl DispatchPool {
                 }
             }
             _ => {
-                // Safety: work is constructed above as Unit or SafeUnit only.
+                // Safety: `send` will never return anything but Unit or
+                // SafeUnit.
                 unsafe { std::hint::unreachable_unchecked() }
             }
 
@@ -219,8 +224,9 @@ impl Default for DispatchPool {
 }
 
 impl Sender {
-    // Send new work, possibly returning some older work if the queue bound and
-    // the limit is reached.
+    // Send new work, possibly returning some, different, older work if the
+    // queue is bound and its limit is reached. If queue has limit 0, then
+    // always return the work given.
     fn send(&self, work: Work) -> Option<Work> {
         let mut queue = self.ws.queue.lock();
         let exempt = match work {
@@ -233,10 +239,16 @@ impl Sender {
             self.ws.condvar.notify_one();
             None
         } else if qlen > 0 && qlen == self.ws.limit {
-            let old = queue.pop_front().unwrap();
-            queue.push_back(work);
-            self.ws.condvar.notify_one();
-            Some(old)
+            // Avoid the swap if front (oldest) element is a `Terminate`
+            if let Some(&Work::Terminate) = queue.front() {
+                Some(work)
+            } else {
+                // Otherwise swap old for new work
+                let old = queue.pop_front().unwrap();
+                queue.push_back(work);
+                self.ws.condvar.notify_one();
+                Some(old)
+            }
         } else {
             Some(work)
         }
