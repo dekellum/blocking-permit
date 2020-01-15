@@ -1,3 +1,5 @@
+## 1.1.0 (TBD)
+
 ## 1.0.0 (2020-1-12)
 
 * As a performance optimization, replace use of _crossbeam_'s MPMC channel in
