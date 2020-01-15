@@ -188,6 +188,69 @@ fn aborts_dispatch_panic() {
     deregister_dispatch_pool();
 }
 
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
+#[test]
+fn runs_oldest_on_caller() {
+    log_init();
+    let pool = DispatchPool::builder()
+        .pool_size(1)
+        .queue_length(1)
+        .after_start(|i| debug!("starting DispatchPool thread {}", i))
+        .before_stop(|i| debug!("dropping DispatchPool thread {}", i))
+        .create();
+    debug!("pool: {:?}", pool);
+    crate::register_dispatch_pool(pool);
+
+    let mut lp = futr_exec::LocalPool::new();
+    let spawner = lp.spawner();
+    // First goes through queue to occupy thread
+    spawner.spawn(
+        dispatch_rx(|| {
+            assert!(
+                thread::current().name()
+                    .unwrap()
+                    .contains(&"dpx-")
+            );
+            thread::sleep(Duration::from_millis(100));
+        })
+            .unwrap()
+            .map(|_r| ())
+    ).expect("spawn 1");
+
+    thread::sleep(Duration::from_millis(10));
+
+    // Second fills queue, momentarily
+    spawner.spawn(
+        dispatch_rx(|| {
+            assert!(
+                thread::current().name()
+                    .unwrap()
+                    .contains(&"runs_oldest_on_caller")
+            );
+            thread::sleep(Duration::from_millis(100));
+        })
+            .unwrap()
+            .map(|_r| ())
+    ).expect("spawn 2");
+
+    // Third replaces second in queue, second run by this call.
+    spawner.spawn(
+        dispatch_rx(|| {
+            assert!(
+                thread::current().name()
+                    .unwrap()
+                    .contains(&"dpx-")
+            );
+        })
+            .unwrap()
+            .map(|_r| ())
+    ).expect("spawn 3");
+
+    lp.run();
+
+    deregister_dispatch_pool();
+}
+
 /// Test of a manually-constructed future which uses `blocking_permit_future`
 /// and `dispatch_rx`.
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
@@ -373,7 +436,7 @@ fn test_tokio_threadpool() {
         let j = async {
             dispatch_or_permit!(&TEST_SET, || -> Result<usize, Canceled> {
                 info!("do some blocking stuff - {:?}",
-                      std::thread::current().id());
+                      thread::current().id());
                 thread::sleep(Duration::from_millis(1));
                 Ok(41)
             })
