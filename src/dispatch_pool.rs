@@ -342,9 +342,9 @@ impl DispatchPoolBuilder {
     /// Set whether to catch and ignore unwinds for dispatch tasks that panic,
     /// or to abort.
     ///
-    /// When true, panics are ignored. Note that the unwind safety of
-    /// dispatched tasks is not well assured by the `UnwindSafe` marker trait
-    /// and may later result in undefined behavior (UB) or logic bugs.
+    /// If true, panics are ignored. Note that the unwind safety of dispatched
+    /// tasks is not well assured by the `UnwindSafe` marker trait and may
+    /// later result in undefined behavior (UB) or logic bugs.
     ///
     /// If false, a panic in a dispatch pool thread will result in process
     /// abort.
