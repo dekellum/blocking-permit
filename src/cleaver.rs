@@ -27,7 +27,7 @@ impl Splittable for Bytes {
 /// length.
 pub struct Cleaver<B, E, St>
     where B: Splittable + Unpin,
-          St: Stream<Item=Result<B, E>> + fmt::Debug
+          St: Stream<Item=Result<B, E>>
 {
     source: St,
     rem: Option<B>,
@@ -36,7 +36,7 @@ pub struct Cleaver<B, E, St>
 
 impl<B, E, St> Stream for Cleaver<B, E, St>
     where B: Splittable + Unpin,
-          St: Stream<Item=Result<B, E>> + fmt::Debug
+          St: Stream<Item=Result<B, E>>
 {
     type Item = Result<B, E>;
 
