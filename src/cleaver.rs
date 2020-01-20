@@ -93,7 +93,7 @@ impl<B, E, St> fmt::Debug for Cleaver<B, E, St>
           St: Stream<Item=Result<B, E>> + fmt::Debug
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("File")
+        f.debug_struct("Cleaver")
             .field("source", &self.source)
             .field(
                 "rem",
