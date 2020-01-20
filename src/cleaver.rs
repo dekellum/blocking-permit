@@ -13,6 +13,8 @@ pub trait Splittable: Sized {
     fn split_if(&mut self, max: usize) -> Option<Self>;
 }
 
+/// This implementation is inexpensive, relying on `Bytes::split_to` which does
+/// not copy.
 impl Splittable for Bytes {
     fn split_if(&mut self, max: usize) -> Option<Self> {
         if self.len() > max {
@@ -25,6 +27,9 @@ impl Splittable for Bytes {
 
 /// A `Stream` adapter that splits buffers from a source to a given, maximum
 /// length.
+///
+/// This may be useful to limit the amount of time spent processing each `Item`
+/// of a `Splittable` stream.
 pub struct Cleaver<B, E, St>
     where B: Splittable + Unpin,
           St: Stream<Item=Result<B, E>>
