@@ -7,7 +7,9 @@ use futures_core::stream::Stream;
 
 /// Trait for buffer types that may be split at a maximum length.
 pub trait Splittable: Sized {
-    /// If self has length greater then the specific maximum, split it into
+    /// Split if larger then a maximum length.
+    ///
+    /// If self has length greater then the specified maximum, split it into
     /// two, returning the new leading segment and with self mutated to
     /// contain the remainder.
     fn split_if(&mut self, max: usize) -> Option<Self>;
