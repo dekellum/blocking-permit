@@ -45,7 +45,10 @@ pub use permit::{
     SyncBlockingPermitFuture,
 };
 
+#[cfg(feature = "cleaver")]
 mod cleaver;
+
+#[cfg(feature = "cleaver")]
 pub use cleaver::{
     Cleaver,
     Splittable,
