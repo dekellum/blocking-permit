@@ -1,3 +1,6 @@
+#[cfg(feature = "cleaver")]
+use bytes::Bytes;
+
 use std::panic::UnwindSafe;
 
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
@@ -453,4 +456,50 @@ fn test_tokio_threadpool() {
     });
     rt.block_on(join).unwrap();
     assert_eq!(1000, FINISHED.load(Ordering::SeqCst));
+}
+
+#[cfg(feature="cleaver")]
+#[test]
+fn test_cleaver_empty() {
+    use futures_util::{stream, stream::StreamExt};
+    use std::io;
+    let task = async {
+        let bstream = stream::once(async { Ok(Bytes::new()) });
+        let cleaver = super::Cleaver::new(bstream, 1);
+        cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
+    };
+    let collected = futr_exec::block_on(task);
+    assert_eq!(collected.len(), 1);
+    assert_eq!(collected[0].as_ref().unwrap().len(), 0);
+}
+
+#[cfg(feature="cleaver")]
+#[test]
+fn test_cleaver_through() {
+    use futures_util::{stream, stream::StreamExt};
+    use std::io;
+    let task = async {
+        let bstream = stream::once(async { Ok(Bytes::from("foobar")) });
+        let cleaver = super::Cleaver::new(bstream, 9);
+        cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
+    };
+    let collected = futr_exec::block_on(task);
+    assert_eq!(collected.len(), 1);
+    assert_eq!(collected[0].as_ref().unwrap().as_ref(), b"foobar");
+}
+
+#[cfg(feature="cleaver")]
+#[test]
+fn test_cleaver_more() {
+    use futures_util::{stream, stream::StreamExt};
+    use std::io;
+    let task = async {
+        let bstream = stream::once(async { Ok(Bytes::from("foobar")) });
+        let cleaver = super::Cleaver::new(bstream, 4);
+        cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
+    };
+    let collected = futr_exec::block_on(task);
+    assert_eq!(collected.len(), 2);
+    assert_eq!(collected[0].as_ref().unwrap().as_ref(), b"foob");
+    assert_eq!(collected[1].as_ref().unwrap().as_ref(), b"ar");
 }

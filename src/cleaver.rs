@@ -34,6 +34,19 @@ pub struct Cleaver<B, E, St>
     max: usize,
 }
 
+impl<B, E, St> Cleaver<B, E, St>
+    where B: Splittable + Unpin,
+          St: Stream<Item=Result<B, E>>
+{
+    /// Construct with source and maximum size to split on.
+    ///
+    /// The size to split on must be at least 1.
+    pub fn new(source: St, max: usize) -> Self {
+        assert!(max > 0);
+        Cleaver { source, rem: None, max }
+    }
+}
+
 impl<B, E, St> Stream for Cleaver<B, E, St>
     where B: Splittable + Unpin,
           St: Stream<Item=Result<B, E>>
