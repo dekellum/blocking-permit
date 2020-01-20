@@ -1,4 +1,5 @@
 ## 1.2.0 (TBD)
+* Add must_use attributes to `Future` returning functions.
 
 ## 1.1.0 (2020-1-15)
 * If the `DispatchPool` queue is bounded and becomes full, [`spawn`] now pops
