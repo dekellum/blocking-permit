@@ -1,3 +1,5 @@
+## 1.2.0 (TBD)
+
 ## 1.1.0 (2020-1-15)
 * If the `DispatchPool` queue is bounded and becomes full, [`spawn`] now pops
   the oldest operation off the queue before pushing the newest (just passed)
