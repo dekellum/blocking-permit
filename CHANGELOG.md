@@ -1,4 +1,7 @@
 ## 1.2.0 (TBD)
+* Add `Cleaver`, a `Stream` adapter that splits buffers from a source to a
+  given, maximum length.
+
 * Add must_use attributes to `Future` returning functions.
 
 ## 1.1.0 (2020-1-15)
