@@ -45,6 +45,12 @@ pub use permit::{
     SyncBlockingPermitFuture,
 };
 
+mod cleaver;
+pub use cleaver::{
+    Cleaver,
+    Splittable,
+};
+
 /// An async-aware semaphore for constraining the number of concurrent blocking
 /// operations.
 ///
