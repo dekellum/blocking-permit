@@ -99,6 +99,7 @@ impl<'a> Drop for BlockingPermit<'a> {
 /// operation, while the `BlockingPermit` remains in scope. If no permits are
 /// immediately available, then the current task context will be notified when
 /// one becomes available.
+#[must_use = "blocking_permit_future does nothing unless polled/`await`-ed"]
 pub fn blocking_permit_future(semaphore: &Semaphore)
     -> BlockingPermitFuture<'_>
 {
