@@ -14,6 +14,7 @@ exclude       = [".gitignore", ".travis.yml", "appveyor.yml"]
 build         = "build.rs"
 
 [dependencies]
+bytes               = { version=">=0.5.2, <0.6", optional=true }
 futures-core        = { version=">=0.3.1, <0.4" }
 futures-channel     = { version=">=0.3.1, <0.4", optional=true }
 log                 = { version=">=0.4.4, <0.5" }
@@ -47,6 +48,9 @@ tokio-threaded=["tokio", "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"]
 # Instead of futures-intrusive semaphore. (Both are optional)
 tokio-semaphore=["tokio", "tokio/sync"]
 
+# The `Cleaver` stream adapter
+cleaver=["bytes"]
+
 current-thread=[] # testing hack only
 
 tangential=[] # less interesting benchmarks
@@ -56,4 +60,4 @@ lto = "thin"
 incremental = false
 
 [package.metadata.docs.rs]
-features = ["futures-intrusive"]
+features = ["futures-intrusive", "cleaver"]

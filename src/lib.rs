@@ -45,6 +45,15 @@ pub use permit::{
     SyncBlockingPermitFuture,
 };
 
+#[cfg(feature = "cleaver")]
+mod cleaver;
+
+#[cfg(feature = "cleaver")]
+pub use cleaver::{
+    Cleaver,
+    Splittable,
+};
+
 /// An async-aware semaphore for constraining the number of concurrent blocking
 /// operations.
 ///
