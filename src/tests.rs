@@ -464,6 +464,21 @@ fn test_cleaver_empty() {
     use futures_util::{stream, stream::StreamExt};
     use std::io;
     let task = async {
+        let bstream = stream::empty();
+        let cleaver = super::Cleaver::new(bstream, 1);
+        cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
+    };
+    let collected = futr_exec::block_on(task);
+    assert_eq!(collected.len(), 0);
+}
+
+
+#[cfg(feature="cleaver")]
+#[test]
+fn test_cleaver_empty_bytes() {
+    use futures_util::{stream, stream::StreamExt};
+    use std::io;
+    let task = async {
         let bstream = stream::once(async { Ok(Bytes::new()) });
         let cleaver = super::Cleaver::new(bstream, 1);
         cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
