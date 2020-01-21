@@ -466,7 +466,7 @@ fn test_cleaver_empty() {
     let task = async {
         let bstream = stream::empty();
         let cleaver = super::Cleaver::new(bstream, 1);
-        cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
+        cleaver.collect::<Vec<Result<Bytes,io::Error>>>() .await
     };
     let collected = futr_exec::block_on(task);
     assert_eq!(collected.len(), 0);
@@ -481,7 +481,7 @@ fn test_cleaver_empty_bytes() {
     let task = async {
         let bstream = stream::once(async { Ok(Bytes::new()) });
         let cleaver = super::Cleaver::new(bstream, 1);
-        cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
+        cleaver.collect::<Vec<Result<Bytes,io::Error>>>() .await
     };
     let collected = futr_exec::block_on(task);
     assert_eq!(collected.len(), 1);
@@ -496,7 +496,7 @@ fn test_cleaver_through() {
     let task = async {
         let bstream = stream::once(async { Ok(Bytes::from("foobar")) });
         let cleaver = super::Cleaver::new(bstream, 9);
-        cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
+        cleaver.collect::<Vec<Result<Bytes,io::Error>>>() .await
     };
     let collected = futr_exec::block_on(task);
     assert_eq!(collected.len(), 1);
@@ -511,7 +511,7 @@ fn test_cleaver_more() {
     let task = async {
         let bstream = stream::once(async { Ok(Bytes::from("foobar")) });
         let cleaver = super::Cleaver::new(bstream, 4);
-        cleaver.collect::<Vec<Result<Bytes,io::Error>>>().await
+        cleaver.collect::<Vec<Result<Bytes,io::Error>>>() .await
     };
     let collected = futr_exec::block_on(task);
     assert_eq!(collected.len(), 2);
