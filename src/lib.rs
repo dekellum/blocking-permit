@@ -9,6 +9,34 @@
 //!   limiting the number of concurrent blocking operations via a re-exported
 //!   [`Semaphore`] type selected by one of the (non-default) features
 //!   _futures-intrusive_, or _tokio-semaphore_ (or _tokio-omnibus_).
+//!
+//! ## Optional Features
+//!
+//! The following features may be enabled at build time. **All are disabled by
+//! default, unless otherwise noted.**
+//!
+//! _futures-channel_
+//! : Use this oneshot channel implementation (Default
+//!   enabled, but overridden by _tokio-oneshot_ or _tokio-omnibus_.)
+//!
+//! _tokio-oneshot_
+//! : Use tokio's oneshot channel implementation (Overrides _futures-channel_
+//!   default.).
+//!
+//! _futures-intrusive_
+//! : Include `BlockingPermit` and re-export `Semaphore` from the
+//!   _futures-intrusive_ crate. (Works with all prominent runtimes.)
+//!
+//! _tokio-semaphore_
+//! : Include `BlockingPermit` and re-export tokio's `Semaphore`
+//!   type. (Overrides _futures-intrusive_.)
+//!
+//! _tokio-threaded_
+//! : Add `block_in_place` support, exposed via [`BlockingPermit::run`].
+//!
+//! _tokio-omnibus_
+//! : The snarky way to include all above and, we expect, any
+//!   newly added _tokio-*_ feature in this crate.
 
 #![warn(rust_2018_idioms)]
 
