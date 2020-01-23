@@ -32,23 +32,14 @@ rand                = { version=">=0.7.0, <0.8" }
 tempfile            = { version=">=3.1.0, <3.2" }
 
 [features]
-# Need some oneshot channel for dispatch_rx, default to futures
-# Use default-features=false in combination with tokio-oneshot, if desired.
+# See src/lib.rs section on Optional Features
 default=["futures-channel"]
 
-# All available tokio integrations
 tokio-omnibus=["tokio-oneshot", "tokio-threaded", "tokio-semaphore"]
-
-# Instead of (default) futures-channel oneshot
 tokio-oneshot=["tokio", "tokio/sync"]
-
-# Tokio threaded runtime, including blocking support
 tokio-threaded=["tokio", "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"]
-
-# Instead of futures-intrusive semaphore. (Both are optional)
 tokio-semaphore=["tokio", "tokio/sync"]
 
-# The `Cleaver` stream adapter
 cleaver=["bytes"]
 
 current-thread=[] # testing hack only
