@@ -10,6 +10,8 @@
 //!   [`Semaphore`] type selected by one of the (non-default) features
 //!   _futures-intrusive_, or _tokio-semaphore_ (or _tokio-omnibus_).
 //!
+//! * A [`Cleaver`] for splitting `Stream` buffers.
+//!
 //! ## Optional Features
 //!
 //! The following features may be enabled at build time. **All are disabled by
@@ -37,6 +39,9 @@
 //! _tokio-omnibus_
 //! : The snarky way to include all above and, we expect, any
 //!   newly added _tokio-*_ feature in this crate.
+//!
+//! _cleaver_
+//! : Include the [`Cleaver`] wrapper stream.
 
 #![warn(rust_2018_idioms)]
 

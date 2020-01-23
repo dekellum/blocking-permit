@@ -6,6 +6,8 @@ use bytes::Bytes;
 use futures_core::stream::Stream;
 
 /// Trait for buffer types that may be split at a maximum length.
+///
+/// This is enabled via the *cleaver* feature.
 pub trait Splittable: Sized {
     /// Split if larger then a maximum length.
     ///
@@ -31,7 +33,7 @@ impl Splittable for Bytes {
 /// length.
 ///
 /// This may be useful to limit the amount of time spent processing each `Item`
-/// of a `Splittable` stream.
+/// of a `Splittable` stream.  This is enabled via the *cleaver* feature.
 pub struct Cleaver<B, E, St>
     where B: Splittable + Unpin,
           St: Stream<Item=Result<B, E>>
