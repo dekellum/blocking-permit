@@ -9,9 +9,9 @@ use futures_core::stream::Stream;
 ///
 /// This is enabled via the *cleaver* feature.
 pub trait Splittable: Sized {
-    /// Split if larger then a maximum length.
+    /// Split if larger than a maximum length.
     ///
-    /// If self has length greater then the specified maximum, split it into
+    /// If self has length greater than the specified maximum, split it into
     /// two, returning the new leading segment and with self mutated to
     /// contain the remainder.
     fn split_if(&mut self, max: usize) -> Option<Self>;
