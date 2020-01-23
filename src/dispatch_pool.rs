@@ -36,18 +36,17 @@ use parking_lot::{Condvar, Mutex};
 /// ## Usage
 ///
 /// By default, the pool uses an unbounded queue, with the assumption that
-/// resource/capacity is externally constrained, for example via
-/// [`Semaphore`](crate::Semaphore). Once constructed, a fixed number of
-/// threads are spawned and the instance acts as a handle to the pool. This may
-/// be inexpensively cloned for additional handles to the same pool.
+/// resource/capacity is externally constrained. Once constructed, a fixed
+/// number of threads are spawned and the instance acts as a handle to the
+/// pool. This may be inexpensively cloned for additional handles to the same
+/// pool.
 ///
-/// See [`DispatchPoolBuilder`] for an extensive set of options, some of which
-/// are more appropriate for testing than production use.
+/// See [`DispatchPoolBuilder`] for an extensive set of options.
 ///
-/// ### With tokio threaded runtime
+/// ### With tokio's threaded runtime
 ///
-/// One can schedule a clone of the `DispatchPool` (handle) on each runtime
-/// thread (_tokio-threaded_ feature).
+/// One can schedule a clone of the `DispatchPool` (handle) on each tokio
+/// runtime thread (tokio's _rt-threaded_ feature).
 ///
 #[cfg_attr(feature = "tokio-threaded", doc = r##"
 ``` rust
@@ -58,8 +57,6 @@ use blocking_permit::{
 let pool = DispatchPool::builder().create();
 
 let mut rt = tokio::runtime::Builder::new()
-    .core_threads(3)
-    .max_threads(3)
     .threaded_scheduler()
     .on_thread_start(move || {
         register_dispatch_pool(pool.clone());

@@ -10,7 +10,7 @@
 //!   [`Semaphore`] type selected by one of the (non-default) features
 //!   _futures-intrusive_, or _tokio-semaphore_ (or _tokio-omnibus_).
 //!
-//! * A [`Cleaver`] for splitting `Stream` buffers.
+//! * A [`Cleaver`] for splitting `Stream` buffers into more manageable sizes.
 //!
 //! ## Optional Features
 //!
@@ -37,8 +37,8 @@
 //! : Add `block_in_place` support, exposed via [`BlockingPermit::run`].
 //!
 //! _tokio-omnibus_
-//! : The snarky way to include all above and, we expect, any
-//!   newly added _tokio-*_ feature in this crate.
+//! : A simpler way to include all above and, we expect, any future added
+//!   _tokio-*_ features in this crate.
 //!
 //! _cleaver_
 //! : Include the [`Cleaver`] wrapper stream.

@@ -66,7 +66,8 @@ impl<B, E, St> Stream for Cleaver<B, E, St>
         -> Poll<Option<Self::Item>>
     {
         // Safety: This is for projection to src below, which is exclusively
-        // owned by this wrapper and never moved.
+        // owned by this wrapper and never moved. The `unsafe` could be
+        // avoided, but at the cost of requiring the source stream be `Unpin`.
         let this = unsafe { self.get_unchecked_mut() };
         match this.rem {
             Some(ref mut b) => {

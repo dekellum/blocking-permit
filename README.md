@@ -15,6 +15,8 @@ This crate provides:
 * A `BlockingPermit` for limiting the number of concurrent blocking operations
   via a `Semaphore` type.
 
+* A `Cleaver` for splitting `Stream` buffers into more manageable sizes.
+
 ## Minimum supported rust version
 
 MSRV := 1.39.0
