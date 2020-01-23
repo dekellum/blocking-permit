@@ -57,7 +57,7 @@ impl<'a> BlockingPermit<'a> {
     /// Enter and run the blocking closure.
     ///
     /// This wraps the `tokio::task::block_in_place` call, as a secondary step
-    /// from completion of the [`BlockingPermitFuture`] that must be call on
+    /// from completion of the [`BlockingPermitFuture`] that must be called on
     /// the same thread. The permit is passed by value and will be dropped on
     /// termination of this call.
     ///
