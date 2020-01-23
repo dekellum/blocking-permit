@@ -65,6 +65,8 @@ impl<B, E, St> Stream for Cleaver<B, E, St>
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Option<Self::Item>>
     {
+        // Safety: This is for projection to src below, which is exclusively
+        // owned by this wrapper and never moved.
         let this = unsafe { self.get_unchecked_mut() };
         match this.rem {
             Some(ref mut b) => {
