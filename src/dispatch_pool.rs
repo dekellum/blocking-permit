@@ -47,28 +47,31 @@ use parking_lot::{Condvar, Mutex};
 /// ### With tokio threaded runtime
 ///
 /// One can schedule a clone of the `DispatchPool` (handle) on each runtime
-/// thread:
+/// thread (_tokio-threaded_ feature).
 ///
-/// ```
-/// use blocking_permit::{
-///     DispatchPool, register_dispatch_pool, deregister_dispatch_pool
-/// };
-///
-/// let pool = DispatchPool::builder().create();
-///
-/// let mut rt = tokio::runtime::Builder::new()
-///     .core_threads(3)
-///     .max_threads(3)
-///     .threaded_scheduler()
-///     .on_thread_start(move || {
-///         register_dispatch_pool(pool.clone());
-///     })
-///     .on_thread_stop(|| {
-///         deregister_dispatch_pool();
-///     })
-///     .build()
-///     .unwrap();
-/// ```
+#[cfg_attr(feature = "tokio-threaded", doc = r##"
+``` rust
+use blocking_permit::{
+    DispatchPool, register_dispatch_pool, deregister_dispatch_pool
+};
+
+let pool = DispatchPool::builder().create();
+
+let mut rt = tokio::runtime::Builder::new()
+    .core_threads(3)
+    .max_threads(3)
+    .threaded_scheduler()
+    .on_thread_start(move || {
+        register_dispatch_pool(pool.clone());
+    })
+    .on_thread_stop(|| {
+        deregister_dispatch_pool();
+    })
+    .build()
+    .unwrap();
+```
+"##)]
+
 #[derive(Clone)]
 pub struct DispatchPool {
     sender: Arc<Sender>,
