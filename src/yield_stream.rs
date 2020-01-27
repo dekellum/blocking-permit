@@ -8,6 +8,7 @@ use futures_core::stream::Stream;
 /// This may be useful to ensure that a Future that polls a Stream (directly or
 /// indirectly) yields periodically.
 #[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct YieldStream<St, I>
     where St: Stream<Item=I>
 {
