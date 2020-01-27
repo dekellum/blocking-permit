@@ -48,8 +48,7 @@ impl Semaphorish for Semaphore {
 impl<'a> BlockingPermitFuture<'a> {
 
     /// Construct given `Semaphore` reference.
-    pub fn new(semaphore: &'a Semaphore) -> BlockingPermitFuture<'a>
-    {
+    pub fn new(semaphore: &'a Semaphore) -> BlockingPermitFuture<'a> {
         BlockingPermitFuture {
             semaphore,
             permit: None,
