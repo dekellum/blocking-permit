@@ -30,7 +30,7 @@ pub struct BlockingPermit<'a> {
 pub type SyncBlockingPermitFuture<'a> = BlockingPermitFuture<'a>;
 
 /// A future which resolves to a [`BlockingPermit`].
-#[must_use = "must be `.await`ed or polled"]
+#[must_use = "futures do nothing unless awaited or polled"]
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
     permit: Option<Pin<Box<

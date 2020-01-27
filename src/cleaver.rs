@@ -34,6 +34,7 @@ impl Splittable for Bytes {
 ///
 /// This may be useful to limit the amount of time spent processing each `Item`
 /// of a `Splittable` stream.  This is enabled via the *cleaver* feature.
+#[must_use = "streams do nothing unless polled"]
 pub struct Cleaver<B, E, St>
     where B: Splittable + Unpin,
           St: Stream<Item=Result<B, E>>

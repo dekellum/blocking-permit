@@ -57,6 +57,7 @@ pub fn dispatch<F>(f: F) -> Option<F>
 }
 
 /// Value returned by [`dispatch_rx`].
+#[must_use = "futures do nothing unless awaited or polled"]
 pub enum DispatchRx<F, T> {
     Dispatch(Dispatched<T>),
     NotRegistered(F),
@@ -84,7 +85,6 @@ impl<F, T> DispatchRx<F, T> {
 /// closure is spawned on the pool, and this returns a `Dispatched` future,
 /// which resolves to the result of the closure. Otherwise the original closure
 /// is returned.
-#[must_use = "dispatch_rx returned `Dispatch` must be `await`-ed"]
 pub fn dispatch_rx<F, T>(f: F) -> DispatchRx<F, T>
     where F: FnOnce() -> T + Send + 'static,
           T: Send + 'static

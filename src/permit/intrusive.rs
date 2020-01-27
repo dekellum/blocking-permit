@@ -22,7 +22,7 @@ pub struct BlockingPermit<'a> {
 }
 
 /// A future which resolves to a [`BlockingPermit`].
-#[must_use = "must be `.await`ed or polled"]
+#[must_use = "futures do nothing unless awaited or polled"]
 #[derive(Debug)]
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
@@ -94,7 +94,7 @@ impl<'a> FusedFuture for BlockingPermitFuture<'a> {
 }
 
 /// A `Sync` wrapper available via [`BlockingPermitFuture::make_sync`].
-#[must_use = "must be `.await`ed or polled"]
+#[must_use = "futures do nothing unless awaited or polled"]
 #[derive(Debug)]
 pub struct SyncBlockingPermitFuture<'a> {
     futr: Mutex<BlockingPermitFuture<'a>>
