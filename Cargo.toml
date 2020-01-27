@@ -41,6 +41,7 @@ tokio-threaded=["tokio", "tokio/rt-core", "tokio/rt-threaded", "tokio/blocking"]
 tokio-semaphore=["tokio", "tokio/sync"]
 
 cleaver=["bytes"]
+yield-stream=[]
 
 current-thread=[] # testing hack only
 

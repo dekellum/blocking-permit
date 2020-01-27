@@ -87,6 +87,12 @@ pub use cleaver::{
     Splittable,
 };
 
+#[cfg(feature = "yield-stream")]
+mod yield_stream;
+
+#[cfg(feature = "yield-stream")]
+pub use yield_stream::YieldStream;
+
 /// An async-aware semaphore for constraining the number of concurrent blocking
 /// operations.
 ///

@@ -1,8 +1,3 @@
-#[cfg(feature = "cleaver")]
-use bytes::Bytes;
-
-use std::panic::UnwindSafe;
-
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 use std::{
     future::Future,
@@ -13,16 +8,28 @@ use std::{
     time::Duration
 };
 
+#[cfg(feature = "cleaver")]
+use std::io;
+
+use std::panic::UnwindSafe;
+
+#[cfg(feature = "cleaver")]
+use bytes::Bytes;
+
 use futures_executor as futr_exec;
 use futures_util::future::FutureExt;
 use futures_util::task::SpawnExt;
 
-#[cfg(feature="tokio-threaded")]
-#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
-use futures_util::stream::{FuturesUnordered, StreamExt};
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive",
+          feature = "cleaver", feature = "yield-stream"))]
+use futures_util::{stream, stream::StreamExt};
 
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 use lazy_static::lazy_static;
+
+#[cfg(feature="tokio-threaded")]
+#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
+use futures_util::stream::FuturesUnordered;
 
 use log::debug;
 
@@ -461,8 +468,6 @@ fn test_tokio_threadpool() {
 #[cfg(feature="cleaver")]
 #[test]
 fn test_cleaver_empty() {
-    use futures_util::{stream, stream::StreamExt};
-    use std::io;
     let task = async {
         let bstream = stream::empty();
         let cleaver = super::Cleaver::new(bstream, 1);
@@ -472,12 +477,9 @@ fn test_cleaver_empty() {
     assert_eq!(collected.len(), 0);
 }
 
-
 #[cfg(feature="cleaver")]
 #[test]
 fn test_cleaver_empty_bytes() {
-    use futures_util::{stream, stream::StreamExt};
-    use std::io;
     let task = async {
         let bstream = stream::once(async { Ok(Bytes::new()) });
         let cleaver = super::Cleaver::new(bstream, 1);
@@ -491,8 +493,6 @@ fn test_cleaver_empty_bytes() {
 #[cfg(feature="cleaver")]
 #[test]
 fn test_cleaver_through() {
-    use futures_util::{stream, stream::StreamExt};
-    use std::io;
     let task = async {
         let bstream = stream::once(async { Ok(Bytes::from("foobar")) });
         let cleaver = super::Cleaver::new(bstream, 9);
@@ -506,8 +506,6 @@ fn test_cleaver_through() {
 #[cfg(feature="cleaver")]
 #[test]
 fn test_cleaver_more() {
-    use futures_util::{stream, stream::StreamExt};
-    use std::io;
     let task = async {
         let bstream = stream::once(async { Ok(Bytes::from("foobar")) });
         let cleaver = super::Cleaver::new(bstream, 4);
@@ -517,4 +515,28 @@ fn test_cleaver_more() {
     assert_eq!(collected.len(), 2);
     assert_eq!(collected[0].as_ref().unwrap().as_ref(), b"foob");
     assert_eq!(collected[1].as_ref().unwrap().as_ref(), b"ar");
+}
+
+#[cfg(feature="yield-stream")]
+#[test]
+fn test_yield_stream_empty() {
+    let task = async {
+        let bstream = stream::empty::<usize>();
+        let ystream = super::YieldStream::new(bstream);
+        ystream.collect::<Vec<usize>>() .await
+    };
+    let collected = futr_exec::block_on(task);
+    assert_eq!(collected.len(), 0);
+}
+
+#[cfg(feature="yield-stream")]
+#[test]
+fn test_yield_stream_multiple() {
+    let task = async {
+        let bstream = stream::iter(vec![1, 2, 3]);
+        let ystream = super::YieldStream::new(bstream);
+        ystream.collect::<Vec<usize>>() .await
+    };
+    let collected = futr_exec::block_on(task);
+    assert_eq!(vec![1, 2, 3], collected);
 }
