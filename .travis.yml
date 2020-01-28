@@ -10,6 +10,7 @@ script:
   - 'cargo test --no-default-features --features tokio-semaphore,tokio-oneshot'
   - 'cargo test --no-default-features --features tokio-omnibus'
   - 'cargo test --features cleaver'
+  - 'cargo test --features yield-stream'
   - 'cargo test --features futures-intrusive'
   - 'cargo test --features tokio-threaded,futures-intrusive'
   - 'cargo test --all-features'
