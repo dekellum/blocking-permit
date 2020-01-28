@@ -426,6 +426,8 @@ fn test_futr_local_pool() {
 #[cfg(feature="tokio-threaded")]
 #[test]
 fn test_tokio_threadpool() {
+    use futures_util::stream::StreamExt;
+
     log_init();
 
     lazy_static! {
