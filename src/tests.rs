@@ -20,9 +20,12 @@ use futures_executor as futr_exec;
 use futures_util::future::FutureExt;
 use futures_util::task::SpawnExt;
 
+#[cfg(any(feature = "cleaver", feature = "yield-stream"))]
+use futures_util::stream;
+
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive",
           feature = "cleaver", feature = "yield-stream"))]
-use futures_util::{stream, stream::StreamExt};
+use futures_util::stream::StreamExt;
 
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 use lazy_static::lazy_static;

@@ -3,10 +3,15 @@ use std::task::{Context, Poll};
 
 use futures_core::stream::Stream;
 
-/// A `Stream` adapter that yields after every Ready result from its source.
+/// A `Stream` adapter that yields after every `Poll::Ready(Some(_))` result
+/// from its source.
 ///
-/// This may be useful to ensure that a Future that polls a Stream (directly or
-/// indirectly) yields periodically.
+/// The wrapper may be useful to ensure that a `Future` that polls a `Stream`
+/// (directly or indirectly) yields (return `Poll::Pending`) between items. If
+/// the source stream already returns `Poll::Pending` then this will not add
+/// further `Poll::Pending` returns.
+///
+/// The type is enabled via the *yield-stream* feature.
 #[derive(Debug)]
 #[must_use = "streams do nothing unless polled"]
 pub struct YieldStream<St, I>

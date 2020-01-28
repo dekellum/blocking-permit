@@ -52,4 +52,4 @@ lto = "thin"
 incremental = false
 
 [package.metadata.docs.rs]
-features = ["futures-intrusive", "tokio-threaded", "cleaver"]
+features = ["futures-intrusive", "tokio-threaded", "cleaver", "yield-stream"]
