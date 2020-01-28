@@ -540,3 +540,25 @@ fn test_yield_stream_multiple() {
     let collected = futr_exec::block_on(task);
     assert_eq!(vec![1, 2, 3], collected);
 }
+
+
+#[cfg(feature="yield-stream")]
+#[test]
+fn test_yield_stream_stepping() {
+    use std::pin::Pin;
+    use futures_core::stream::Stream;
+    use futures_core::task::{Context, Poll::*};
+    use futures_util::task::noop_waker;
+
+    let bstream = stream::iter(vec![1, 2, 3]);
+    let mut ystream = super::YieldStream::new(bstream);
+    let waker = noop_waker();
+    let mut ctx = Context::from_waker(&waker);
+
+    for i in 1..=3 {
+        assert_eq!(Pin::new(&mut ystream).poll_next(&mut ctx), Ready(Some(i)));
+        assert_eq!(Pin::new(&mut ystream).poll_next(&mut ctx), Pending);
+    }
+    assert_eq!(Pin::new(&mut ystream).poll_next(&mut ctx), Ready(None));
+    assert_eq!(Pin::new(&mut ystream).poll_next(&mut ctx), Ready(None));
+}
