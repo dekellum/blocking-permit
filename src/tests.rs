@@ -21,11 +21,7 @@ use futures_util::future::FutureExt;
 use futures_util::task::SpawnExt;
 
 #[cfg(any(feature = "cleaver", feature = "yield-stream"))]
-use futures_util::stream;
-
-#[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive",
-          feature = "cleaver", feature = "yield-stream"))]
-use futures_util::stream::StreamExt;
+use futures_util::{stream, stream::StreamExt};
 
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 use lazy_static::lazy_static;
@@ -543,7 +539,6 @@ fn test_yield_stream_multiple() {
     let collected = futr_exec::block_on(task);
     assert_eq!(vec![1, 2, 3], collected);
 }
-
 
 #[cfg(feature="yield-stream")]
 #[test]
