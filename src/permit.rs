@@ -39,7 +39,7 @@ impl<'a> BlockingPermit<'a> {
     /// Enter the blocking section of code on the current thread.
     ///
     /// This is a secondary step from completion of the
-    /// [`BlockingPermitFuture`] as it must be call on the same thread,
+    /// [`BlockingPermitFuture`] as it must be called on the same thread,
     /// immediately before the blocking section.  The blocking permit should
     /// then be dropped at the end of the blocking section. If the
     /// _tokio-threaded_ feature is or might be used, `run` should be
