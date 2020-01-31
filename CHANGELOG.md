@@ -3,7 +3,7 @@
   given, maximum length (_cleaver_ feature).
 
 * Add `YieldStream`, an adapter which yields between `Stream` items
-  (_yield-stream_ feature)
+  (_yield-stream_ feature).
 
 * Refine must_use attributes for `Future` and `Stream` types.
 
