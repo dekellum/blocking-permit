@@ -12,6 +12,8 @@
 //!
 //! * A [`Cleaver`] for splitting `Stream` buffers into more manageable sizes.
 //!
+//! * A [`YieldStream`] for yielding between `Stream` items.
+//!
 //! ## Optional Features
 //!
 //! The following features may be enabled at build time. **All are disabled by
@@ -42,6 +44,9 @@
 //!
 //! _cleaver_
 //! : Include the [`Cleaver`] wrapper stream.
+//!
+//! _yield-stream_
+//! : Include the [`YieldStream`] wrapper.
 
 #![warn(rust_2018_idioms)]
 
@@ -86,6 +91,12 @@ pub use cleaver::{
     Cleaver,
     Splittable,
 };
+
+#[cfg(feature = "yield-stream")]
+mod yield_stream;
+
+#[cfg(feature = "yield-stream")]
+pub use yield_stream::YieldStream;
 
 /// An async-aware semaphore for constraining the number of concurrent blocking
 /// operations.
