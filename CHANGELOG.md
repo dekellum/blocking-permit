@@ -9,6 +9,8 @@
 
 * Many (rust)doc improvements.
 
+* Extend (optional) futures-intrusive dependency to include 0.3.
+
 * Extend num_cpus dependency to include 1.12.
 
 ## 1.1.0 (2020-1-15)
