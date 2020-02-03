@@ -66,7 +66,7 @@ fn test_blocking_permit_traits() {
 }
 
 fn log_init() {
-    env_logger::builder().is_test(true).try_init().ok();
+    piccolog::test_logger();
 }
 
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
