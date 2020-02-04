@@ -70,19 +70,18 @@ impl<B, E, St> Stream for Cleaver<B, E, St>
         // owned by this wrapper and never moved. The `unsafe` could be
         // avoided, but at the cost of requiring the source stream be `Unpin`.
         let this = unsafe { self.get_unchecked_mut() };
-        match this.rem {
-            Some(ref mut b) => {
-                match b.split_if(this.max) {
-                    Some(l) => {
-                        return Poll::Ready(Some(Ok(l)))
-                    }
-                    None => {
-                        return Poll::Ready(Some(Ok(this.rem.take().unwrap())));
-                    }
+
+        if let Some(ref mut b) = this.rem {
+            match b.split_if(this.max) {
+                Some(l) => {
+                    return Poll::Ready(Some(Ok(l)))
+                }
+                None => {
+                    return Poll::Ready(Some(Ok(this.rem.take().unwrap())));
                 }
             }
-            None => {}
         }
+
         let src = unsafe { Pin::new_unchecked(&mut this.source) };
         match src.poll_next(cx) {
             Poll::Ready(Some(Ok(b))) => {

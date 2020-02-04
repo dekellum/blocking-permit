@@ -6,7 +6,6 @@ use std::thread;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use log::{error, trace};
-use num_cpus;
 use parking_lot::{Condvar, Mutex};
 
 /// A specialized thread pool and queue for dispatching _blocking_
