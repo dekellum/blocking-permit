@@ -1,4 +1,4 @@
-## 1.2.0 (TBD)
+## 1.2.0 (2020-2-4)
 * Add `Cleaver`, a `Stream` adapter that splits buffers from a source to a
   given, maximum length (_cleaver_ feature).
 
@@ -12,6 +12,8 @@
 * Extend (optional) futures-intrusive dependency to include 0.3.
 
 * Extend num_cpus dependency to include 1.12.
+
+* Replace env_logger (dev dependency) with piccolog.
 
 ## 1.1.0 (2020-1-15)
 * If the `DispatchPool` queue is bounded and becomes full, [`spawn`] now pops
