@@ -11,7 +11,6 @@ name = "blocking-permit"
 version = "1.2.0"
 dependencies = [
  "bytes",
- "env_logger",
  "futures-channel",
  "futures-core",
  "futures-executor",
@@ -21,6 +20,7 @@ dependencies = [
  "log",
  "num_cpus",
  "parking_lot",
+ "piccolog",
  "rand",
  "tempfile",
  "tokio",
@@ -54,15 +54,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddfc5b9aa5d4507acaf872de71051dfd0e309860e88966e1051e462a077aac4f"
 dependencies = [
  "bitflags",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
-dependencies = [
- "log",
 ]
 
 [[package]]
@@ -223,6 +214,15 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "winapi",
+]
+
+[[package]]
+name = "piccolog"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaa25e8daa0c8cfd04969f22654e408f2d26b19603f4345c478864bffce24ec"
+dependencies = [
+ "log",
 ]
 
 [[package]]
