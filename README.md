@@ -17,6 +17,8 @@ This crate provides:
 
 * A `Cleaver` for splitting `Stream` buffers into more manageable sizes.
 
+* A `YieldStream` for yielding between `Stream` items.
+
 ## Minimum supported rust version
 
 MSRV := 1.39.0
