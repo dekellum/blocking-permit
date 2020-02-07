@@ -24,9 +24,7 @@ pub struct YieldStream<St, I>
 impl<St, I> YieldStream<St, I>
     where St: Stream<Item=I>
 {
-    /// Construct with source and maximum size to split on.
-    ///
-    /// The size to split on must be at least 1.
+    /// Construct with source to wrap.
     pub fn new(source: St) -> Self {
         YieldStream { source, yielded: true }
     }
@@ -40,7 +38,7 @@ impl<St, I> Stream for YieldStream<St, I>
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Option<Self::Item>>
     {
-        // Safety: This is for projection to src below, which is exclusively
+        // Safety: This is for projection to source below, which is exclusively
         // owned by this wrapper and never moved. The `unsafe` could be
         // avoided, but at the cost of requiring the source stream be `Unpin`.
         let this = unsafe { self.get_unchecked_mut() };
