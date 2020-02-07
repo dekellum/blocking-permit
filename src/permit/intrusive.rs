@@ -1,14 +1,14 @@
 use std::cell::Cell;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Mutex, TryLockError};
 use std::task::{Context, Poll};
 
 use futures_core::future::FusedFuture;
 
 use futures_intrusive::sync::{SemaphoreAcquireFuture, SemaphoreReleaser};
-
 pub use futures_intrusive::sync::Semaphore;
+
+use parking_lot::Mutex;
 
 use crate::{Canceled, Semaphorish};
 
@@ -117,13 +117,15 @@ impl<'a> Future for SyncBlockingPermitFuture<'a> {
         -> Poll<Self::Output>
     {
         match self.futr.try_lock() {
-            Ok(mut guard) => {
+            Some(mut guard) => {
+                // Safety: self remains pinned and we don't move guard for life
+                // of the poll call. The guard is dropped after.
                 let futr = unsafe { Pin::new_unchecked(&mut *guard) };
                 futr.poll(cx)
             }
-            Err(TryLockError::Poisoned(_)) => Poll::Ready(Err(Canceled)),
-            Err(TryLockError::WouldBlock) => {
-                cx.waker().wake_by_ref(); //any spin should be brief
+            None => {
+                // Any spin should be brief, contention is not expected.
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
         }
