@@ -218,9 +218,9 @@ dependencies = [
 
 [[package]]
 name = "piccolog"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4aaa25e8daa0c8cfd04969f22654e408f2d26b19603f4345c478864bffce24ec"
+checksum = "90b06e9aeb8040062193cada385be345756c2a448043e91949a03039872c7749"
 dependencies = [
  "log",
 ]
