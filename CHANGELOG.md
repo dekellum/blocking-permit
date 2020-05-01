@@ -1,3 +1,5 @@
+## 1.2.1 (unreleased)
+
 ## 1.2.0 (2020-2-4)
 * Add `Cleaver`, a `Stream` adapter that splits buffers from a source to a
   given, maximum length (_cleaver_ feature).
