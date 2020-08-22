@@ -31,6 +31,10 @@ rand                = { version=">=0.7.0, <0.8" }
 tempfile            = { version=">=3.1.0, <3.2" }
 piccolog            = { version=">=1.0.0, <1.1" }
 
+# A tempfile dependency, max transitive for MSRV 1.39.0
+# https://github.com/Stebalien/tempfile/issues/120
+remove_dir_all      = { version=">=0.5.0, <0.5.3", default-features=false }
+
 [features]
 # See src/lib.rs section on Optional Features
 default=["futures-channel"]
