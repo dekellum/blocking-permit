@@ -1,7 +1,11 @@
-## 1.2.1 (unreleased)
+## 1.2.1 (2020-8-29)
 * Extend num_cpus dependency to include 1.13.
 
+* Extend parking_lot dependency to include 0.11.
+
 * Restrict remove_dir_all transitive dep of tempfile to 0.5.2 to preserve MSRV.
+
+* Misc. documentation improvements.
 
 ## 1.2.0 (2020-2-4)
 * Add `Cleaver`, a `Stream` adapter that splits buffers from a source to a
