@@ -1,6 +1,8 @@
 ## 1.2.1 (unreleased)
 * Extend num_cpus dependency to include 1.13.
 
+* Restrict remove_dir_all transitive dep of tempfile to 0.5.2 to preserve MSRV.
+
 ## 1.2.0 (2020-2-4)
 * Add `Cleaver`, a `Stream` adapter that splits buffers from a source to a
   given, maximum length (_cleaver_ feature).
