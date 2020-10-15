@@ -1,3 +1,5 @@
+## 1.3.0 (unreleased)
+
 ## 1.2.1 (2020-8-29)
 * Extend num_cpus dependency to include 1.13.
 
