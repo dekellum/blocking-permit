@@ -55,8 +55,7 @@ use blocking_permit::{
 
 let pool = DispatchPool::builder().create();
 
-let mut rt = tokio::runtime::Builder::new()
-    .threaded_scheduler()
+let mut rt = tokio::runtime::Builder::new_multi_thread()
     .on_thread_start(move || {
         register_dispatch_pool(pool.clone());
     })
