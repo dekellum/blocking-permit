@@ -28,7 +28,6 @@ dependencies = [
  "parking_lot",
  "piccolog",
  "rand",
- "remove_dir_all",
  "tempfile",
  "tokio",
 ]
