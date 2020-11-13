@@ -55,18 +55,26 @@ jobs:
       - name: Test
         run: cargo test
 
-      - name: Test feature combinations
-        run:
-          - cargo test --features current-thread
-          - cargo test --no-default-features --features tokio-oneshot
-          - cargo test --no-default-features --features tokio-threaded,tokio-oneshot
-          - cargo test --no-default-features --features tokio-semaphore,tokio-oneshot
-          - cargo test --no-default-features --features tokio-omnibus
-          - cargo test --features cleaver
-          - cargo test --features yield-stream
-          - cargo test --features futures-intrusive
-          - cargo test --features tokio-threaded,futures-intrusive
-          - cargo test --all-features
+      - name: Test current-thread
+        run: cargo test --features current-thread
+      - name: Test tokio-oneshot
+        run: cargo test --no-default-features --features tokio-oneshot
+      - name: Test tokio-threaded,tokio-oneshot
+        run: cargo test --no-default-features --features tokio-threaded,tokio-oneshot
+      - name: Test tokio-semaphore,tokio-oneshot
+        run: cargo test --no-default-features --features tokio-semaphore,tokio-oneshot
+      - name: Test tokio-omnibus
+        run: cargo test --no-default-features --features tokio-omnibus
+      - name: Test cleaver
+        run: cargo test --features cleaver
+      - name: Test yield-stream
+        run: cargo test --features yield-stream
+      - name: Test futures-intrusive
+        run: cargo test --features futures-intrusive
+      - name: Test tokio-threaded,futures-intrusive
+        run: cargo test --features tokio-threaded,futures-intrusive
+      - name: Test all features
+        run: cargo test --all-features
 
       - name: Test all features/targets
         if: ${{ matrix.rust == 'nightly' }}
