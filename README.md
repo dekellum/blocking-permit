@@ -5,7 +5,6 @@
 [![crates.io](https://img.shields.io/crates/v/blocking-permit.svg?maxAge=3600)](https://crates.io/crates/blocking-permit)
 [![CI Status](https://github.com/dekellum/blocking-permit/workflows/CI/badge.svg?branch=master)](https://github.com/dekellum/blocking-permit/actions?query=workflow%3ACI)
 [![MSRV](https://img.shields.io/badge/rustc-%E2%89%A5%201.39-orange.svg)](https://github.com/rust-lang/rust/blob/master/RELEASES.md)
-[![deps status](https://deps.rs/repo/github/dekellum/blocking-permit/status.svg)](https://deps.rs/repo/github/dekellum/blocking-permit)
 
 This crate provides:
 
