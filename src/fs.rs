@@ -73,7 +73,7 @@ mod tests {
         {
             let rt = tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(2)
-                .max_threads(2)
+                .max_blocking_threads(1)
                 .build()
                 .unwrap();
 

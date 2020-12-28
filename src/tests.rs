@@ -438,7 +438,7 @@ fn test_tokio_threadpool() {
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(3)
-        .max_threads(3)
+        .max_blocking_threads(1)
         .build()
         .unwrap();
 
