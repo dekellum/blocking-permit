@@ -17,7 +17,7 @@ lazy_static! {
 ///
 /// This is an async version of [`std::fs::create_dir`][std]
 ///
-/// [std]: https://doc.rust-lang.org/std/fs/fn.create_dir.html
+/// [std]: std::fs::create_dir()
 async fn create_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let path = path.as_ref().to_path_buf();
     dispatch_or_permit!(&BLOCKING_SET, move || fs::create_dir(&path))

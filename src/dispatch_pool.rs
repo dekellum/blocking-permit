@@ -421,7 +421,7 @@ impl DispatchPoolBuilder {
         self
     }
 
-    /// Create a new [`DispatchPool`](DispatchPool) with the provided
+    /// Create a new [`DispatchPool`] with the provided
     /// configuration.
     pub fn create(&mut self) -> DispatchPool {
 

@@ -2,11 +2,13 @@
 /// run on thread, returning the result of the closure.
 ///
 /// This helper macro is intended for use in the context of an `async` block or
-/// function. It first attempts to dispatch the closure via [`dispatch_rx`] and
-/// await. If a dispatch pool is not registered on the current thread, it
-/// instead obtains a permit via [`blocking_permit_future`] and awaits.  If the
-/// _tokio-threaded_ feature is enabled, it will then run the closure via
-/// [`BlockingPermit::run`]. Otherwise it will run the closure directly.
+/// function. It first attempts to dispatch the closure via
+/// [`dispatch_rx()`](crate::dispatch_rx) and await. If a dispatch pool is not
+/// registered on the current thread, it instead obtains a permit via
+/// [`blocking_permit_future()`](crate::blocking_permit_future) and awaits.  If
+/// the _tokio-threaded_ feature is enabled, it will then run the closure via
+/// [`BlockingPermit::run()`](crate::BlockingPermit::run). Otherwise it will
+/// run the closure directly.
 ///
 /// ## Usage
 ///
