@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 
 use log::debug;
 
-use tokio::sync::SemaphorePermit;
+use tokio::sync::{SemaphorePermit, AcquireError};
 
 /// An async-aware semaphore for constraining the number of concurrent blocking
 /// operations.
@@ -34,7 +34,8 @@ pub type SyncBlockingPermitFuture<'a> = BlockingPermitFuture<'a>;
 pub struct BlockingPermitFuture<'a> {
     semaphore: &'a Semaphore,
     permit: Option<Pin<Box<
-            dyn Future<Output=SemaphorePermit<'a>> + Send + Sync + 'a
+            dyn Future<Output=Result<SemaphorePermit<'a>, AcquireError>>
+            + Send + Sync + 'a
             >>>,
     acquired: bool,
 }
@@ -78,9 +79,6 @@ impl<'a> fmt::Debug for BlockingPermitFuture<'a> {
 impl<'a> Future for BlockingPermitFuture<'a> {
     type Output = Result<BlockingPermit<'a>, Canceled>;
 
-    // Note that with this implementation, `Canceled` is never returned. For
-    // maximum future flexibilty, however, we keep the error type in place.
-
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Self::Output>
     {
@@ -99,13 +97,17 @@ impl<'a> Future for BlockingPermitFuture<'a> {
 
         match permit.poll(cx) {
             Poll::Pending => Poll::Pending,
-            Poll::Ready(sp) => {
+            Poll::Ready(spr) => {
                 debug!("Creating BlockingPermit (semaphore)");
                 this.acquired = true;
-                Poll::Ready(Ok(BlockingPermit {
-                    permit: sp,
-                    entered: Cell::new(false)
-                }))
+                if let Ok(p) = spr {
+                    Poll::Ready(Ok(BlockingPermit {
+                        permit: p,
+                        entered: Cell::new(false)
+                    }))
+                } else {
+                    Poll::Ready(Err(Canceled))
+                }
             }
         }
     }

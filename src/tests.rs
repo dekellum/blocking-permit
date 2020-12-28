@@ -436,10 +436,9 @@ fn test_tokio_threadpool() {
 
     static FINISHED: AtomicUsize = AtomicUsize::new(0);
 
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(3)
-        .max_threads(3)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(3)
+        .max_blocking_threads(1)
         .build()
         .unwrap();
 

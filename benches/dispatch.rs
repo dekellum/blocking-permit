@@ -45,10 +45,9 @@ lazy_static! {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_direct(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS+EXTRA_THREADS)
-        .max_threads(CORE_THREADS+EXTRA_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS+EXTRA_THREADS)
+        .max_blocking_threads(1)
         .build()
         .unwrap();
 
@@ -74,10 +73,9 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
         .pool_size(EXTRA_THREADS)
         .create();
 
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS)
-        .max_threads(CORE_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS)
+        .max_blocking_threads(1)
         .on_thread_start(move || {
             register_dispatch_pool(pool.clone());
         })
@@ -107,10 +105,9 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_spawn_blocking(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS)
-        .max_threads(CORE_THREADS+EXTRA_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS)
+        .max_blocking_threads(EXTRA_THREADS)
         .build()
         .unwrap();
 
@@ -134,10 +131,9 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_permit(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS+EXTRA_THREADS)
-        .max_threads(CORE_THREADS+EXTRA_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS+EXTRA_THREADS)
+        .max_blocking_threads(1)
         .build()
         .unwrap();
 
@@ -190,10 +186,9 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
         .pool_size(EXTRA_THREADS)
         .create();
 
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS)
-        .max_threads(CORE_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS)
+        .max_blocking_threads(1)
         .on_thread_start(move || {
             register_dispatch_pool(pool.clone());
         })
@@ -225,10 +220,9 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS)
-        .max_threads(CORE_THREADS+EXTRA_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS)
+        .max_blocking_threads(EXTRA_THREADS)
         .build()
         .unwrap();
 
@@ -252,10 +246,9 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_permit(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS+EXTRA_THREADS)
-        .max_threads(CORE_THREADS+EXTRA_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS+EXTRA_THREADS)
+        .max_blocking_threads(1)
         .build()
         .unwrap();
 
@@ -281,10 +274,9 @@ fn r_expensive_threaded_permit(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_direct(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS+EXTRA_THREADS)
-        .max_threads(CORE_THREADS+EXTRA_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS+EXTRA_THREADS)
+        .max_blocking_threads(1)
         .build()
         .unwrap();
 
@@ -329,10 +321,9 @@ fn r_expensive_local_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_direct(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS+SLEEP_THREADS)
-        .max_threads(CORE_THREADS+SLEEP_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS+SLEEP_THREADS)
+        .max_blocking_threads(1)
         .build()
         .unwrap();
 
@@ -358,10 +349,9 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
         .pool_size(SLEEP_THREADS)
         .create();
 
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS)
-        .max_threads(CORE_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS)
+        .max_blocking_threads(1)
         .on_thread_start(move || {
             register_dispatch_pool(pool.clone());
         })
@@ -391,10 +381,9 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS)
-        .max_threads(CORE_THREADS+SLEEP_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS)
+        .max_blocking_threads(SLEEP_THREADS)
         .build()
         .unwrap();
 
@@ -418,10 +407,9 @@ fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_permit(b: &mut Bencher) {
-    let mut rt = tokio::runtime::Builder::new()
-        .core_threads(CORE_THREADS+SLEEP_THREADS)
-        .max_threads(CORE_THREADS+SLEEP_THREADS)
-        .threaded_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(CORE_THREADS+SLEEP_THREADS)
+        .max_blocking_threads(1)
         .build()
         .unwrap();
 
