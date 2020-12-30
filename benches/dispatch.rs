@@ -42,6 +42,28 @@ lazy_static! {
     static ref SLEEP_SET: Semaphore = Semaphore::default_new(SLEEP_THREADS);
 }
 
+// Occupy one (max) blocking thread by waiting on a locked mutex until scope is
+// unwound. This ensures no unexpected use of this thread. Previous to tokio
+// 1.0.0, the max blocking threads could be set to 0:
+// https://github.com/tokio-rs/tokio/issues/2802
+#[cfg(feature="tokio-threaded")]
+macro_rules! cork_blocking_thread {
+    ($rt:expr) => {
+        use std::sync::{Arc, Mutex};
+
+        let mutex = Arc::new(Mutex::new(()));
+        let _cork = mutex.lock().unwrap();
+        {
+            let mutex2 = mutex.clone();
+            $rt.spawn_blocking(move || {
+                eprintln!("corking the blocking thread!");
+                let _ = mutex2.lock().unwrap();
+                eprintln!("uncorked!");
+            });
+        }
+    }
+}
+
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_direct(b: &mut Bencher) {
@@ -50,6 +72,8 @@ fn noop_threaded_direct(b: &mut Bencher) {
         .max_blocking_threads(1)
         .build()
         .unwrap();
+
+    cork_blocking_thread!(rt);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -84,6 +108,8 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
         })
         .build()
         .unwrap();
+
+    cork_blocking_thread!(rt);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -136,6 +162,8 @@ fn noop_threaded_permit(b: &mut Bencher) {
         .max_blocking_threads(1)
         .build()
         .unwrap();
+
+    cork_blocking_thread!(rt);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -198,6 +226,8 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
         .build()
         .unwrap();
 
+    cork_blocking_thread!(rt);
+
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
             rt.spawn(async {
@@ -252,6 +282,8 @@ fn r_expensive_threaded_permit(b: &mut Bencher) {
         .build()
         .unwrap();
 
+    cork_blocking_thread!(rt);
+
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
             rt.spawn(async {
@@ -279,6 +311,8 @@ fn r_expensive_threaded_direct(b: &mut Bencher) {
         .max_blocking_threads(1)
         .build()
         .unwrap();
+
+    cork_blocking_thread!(rt);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -327,6 +361,8 @@ fn sleep_threaded_direct(b: &mut Bencher) {
         .build()
         .unwrap();
 
+    cork_blocking_thread!(rt);
+
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..SLEEP_BATCH).map(|_| {
             rt.spawn(async {
@@ -360,6 +396,8 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
         })
         .build()
         .unwrap();
+
+    cork_blocking_thread!(rt);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..SLEEP_BATCH).map(|_| {
@@ -412,6 +450,8 @@ fn sleep_threaded_permit(b: &mut Bencher) {
         .max_blocking_threads(1)
         .build()
         .unwrap();
+
+    cork_blocking_thread!(rt);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..SLEEP_BATCH).map(|_| {
