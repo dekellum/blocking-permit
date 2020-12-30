@@ -4,6 +4,7 @@
 #![feature(test)]
 extern crate test; // Still required, see rust-lang/rust#55133
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -42,38 +43,10 @@ lazy_static! {
     static ref SLEEP_SET: Semaphore = Semaphore::default_new(SLEEP_THREADS);
 }
 
-// Occupy one (max) blocking thread by waiting on a locked mutex until scope is
-// unwound. This ensures no unexpected use of this thread. Previous to tokio
-// 1.0.0, the max blocking threads could be set to 0:
-// https://github.com/tokio-rs/tokio/issues/2802
-#[cfg(feature="tokio-threaded")]
-macro_rules! cork_blocking_thread {
-    ($rt:expr) => {
-        use std::sync::{Arc, Mutex};
-
-        let mutex = Arc::new(Mutex::new(()));
-        let _cork = mutex.lock().unwrap();
-        {
-            let mutex2 = mutex.clone();
-            $rt.spawn_blocking(move || {
-                eprintln!("corking the blocking thread!");
-                let _ = mutex2.lock().unwrap();
-                eprintln!("uncorked!");
-            });
-        }
-    }
-}
-
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_direct(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS+EXTRA_THREADS)
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS+EXTRA_THREADS, None, None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -93,23 +66,7 @@ fn noop_threaded_direct(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_dispatch_rx(b: &mut Bencher) {
-    let pool = DispatchPool::builder()
-        .pool_size(EXTRA_THREADS)
-        .create();
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS)
-        .max_blocking_threads(1)
-        .on_thread_start(move || {
-            register_dispatch_pool(pool.clone());
-        })
-        .on_thread_stop(|| {
-            deregister_dispatch_pool();
-        })
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS, None, Some(EXTRA_THREADS));
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -131,11 +88,7 @@ fn noop_threaded_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_spawn_blocking(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS)
-        .max_blocking_threads(EXTRA_THREADS)
-        .build()
-        .unwrap();
+    let rt = rt_multi_thread(CORE_THREADS, Some(EXTRA_THREADS), None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -157,13 +110,7 @@ fn noop_threaded_spawn_blocking(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn noop_threaded_permit(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS+EXTRA_THREADS)
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS, Some(EXTRA_THREADS), None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -210,23 +157,7 @@ fn noop_local_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
-    let pool = DispatchPool::builder()
-        .pool_size(EXTRA_THREADS)
-        .create();
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS)
-        .max_blocking_threads(1)
-        .on_thread_start(move || {
-            register_dispatch_pool(pool.clone());
-        })
-        .on_thread_stop(|| {
-            deregister_dispatch_pool();
-        })
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS, None, Some(EXTRA_THREADS));
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -250,11 +181,7 @@ fn r_expensive_threaded_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS)
-        .max_blocking_threads(EXTRA_THREADS)
-        .build()
-        .unwrap();
+    let rt = rt_multi_thread(CORE_THREADS, Some(EXTRA_THREADS), None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -276,13 +203,7 @@ fn r_expensive_threaded_spawn_blocking(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_permit(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS+EXTRA_THREADS)
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS, Some(EXTRA_THREADS), None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -306,13 +227,7 @@ fn r_expensive_threaded_permit(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn r_expensive_threaded_direct(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS+EXTRA_THREADS)
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS+EXTRA_THREADS, None, None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..BATCH).map(|_| {
@@ -355,13 +270,7 @@ fn r_expensive_local_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_direct(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS+SLEEP_THREADS)
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS+SLEEP_THREADS, None, None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..SLEEP_BATCH).map(|_| {
@@ -381,23 +290,7 @@ fn sleep_threaded_direct(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
-    let pool = DispatchPool::builder()
-        .pool_size(SLEEP_THREADS)
-        .create();
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS)
-        .max_blocking_threads(1)
-        .on_thread_start(move || {
-            register_dispatch_pool(pool.clone());
-        })
-        .on_thread_stop(|| {
-            deregister_dispatch_pool();
-        })
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS, None, Some(SLEEP_THREADS));
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..SLEEP_BATCH).map(|_| {
@@ -419,11 +312,7 @@ fn sleep_threaded_dispatch_rx(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS)
-        .max_blocking_threads(SLEEP_THREADS)
-        .build()
-        .unwrap();
+    let rt = rt_multi_thread(CORE_THREADS, Some(SLEEP_THREADS), None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..SLEEP_BATCH).map(|_| {
@@ -445,13 +334,7 @@ fn sleep_threaded_spawn_blocking(b: &mut Bencher) {
 #[cfg(feature="tokio-threaded")]
 #[bench]
 fn sleep_threaded_permit(b: &mut Bencher) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(CORE_THREADS+SLEEP_THREADS)
-        .max_blocking_threads(1)
-        .build()
-        .unwrap();
-
-    cork_blocking_thread!(rt);
+    let rt = rt_multi_thread(CORE_THREADS, Some(SLEEP_THREADS), None);
 
     b.iter(|| {
         let futures: FuturesUnordered<_> = (0..SLEEP_BATCH).map(|_| {
@@ -493,6 +376,47 @@ fn sleep_local_dispatch_rx(b: &mut Bencher) {
         pool.run();
     });
     deregister_dispatch_pool();
+}
+
+#[cfg(feature="tokio-threaded")]
+fn rt_multi_thread(
+    core: usize,
+    blocking: Option<usize>,
+    dispatch: Option<usize>)
+    -> tokio::runtime::Runtime
+{
+    let mut bldr = tokio::runtime::Builder::new_multi_thread();
+    bldr.worker_threads(core);
+
+    let extra_threads = match blocking {
+        Some(c) => c,
+        None => 1
+    };
+    bldr.max_blocking_threads(extra_threads);
+
+    if let Some(c) = dispatch {
+        let pool = DispatchPool::builder().pool_size(c).create();
+        bldr.on_thread_start(move || {
+            register_dispatch_pool(pool.clone());
+        });
+        bldr.on_thread_stop(|| {
+            deregister_dispatch_pool();
+        });
+    }
+    let cntr = Box::new(AtomicUsize::new(0));
+    let mut max = core;
+    if let Some(b) = blocking {
+        max += b;
+    }
+    bldr.thread_name_fn(move || {
+        let c = cntr.fetch_add(1, Ordering::SeqCst);
+        if c >= max {
+            panic!("spawn_blocking/block_in_place must have been used!");
+        } else {
+            format!("worker-{}", c)
+        }
+    });
+    bldr.build().unwrap()
 }
 
 fn expensive_comp() -> usize {
