@@ -385,6 +385,14 @@ fn rt_multi_thread(
     dispatch: Option<usize>)
     -> tokio::runtime::Runtime
 {
+    struct AbortOnPanic;
+
+    impl Drop for AbortOnPanic {
+        fn drop(&mut self) {
+            std::process::abort();
+        }
+    }
+
     let mut bldr = tokio::runtime::Builder::new_multi_thread();
     bldr.worker_threads(core);
 
@@ -403,7 +411,7 @@ fn rt_multi_thread(
             deregister_dispatch_pool();
         });
     }
-    let cntr = Box::new(AtomicUsize::new(0));
+    let cntr = AtomicUsize::new(0);
     let mut max = core;
     if let Some(b) = blocking {
         max += b;
@@ -411,6 +419,7 @@ fn rt_multi_thread(
     bldr.thread_name_fn(move || {
         let c = cntr.fetch_add(1, Ordering::SeqCst);
         if c >= max {
+            let _aborter = AbortOnPanic;
             panic!("spawn_blocking/block_in_place must have been used!");
         } else {
             format!("worker-{}", c)
