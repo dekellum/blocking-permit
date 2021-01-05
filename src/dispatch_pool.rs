@@ -12,9 +12,9 @@ use parking_lot::{Condvar, Mutex};
 /// (synchronous, long running) operations.
 ///
 /// This pool is not an _executor_, has no _waking_ facilities, etc. As
-/// compared with other thread pools supporting `spawn_dispatch` (here called
-/// just `dispatch` or `dispatch_rx`), for example in _tokio_ and _async-std_,
-/// this pool has some unique features:
+/// compared with other thread pools supporting `spawn`, or `spawn_blocking`
+/// in _tokio_, here also called [`dispatch()`](crate::dispatch()) or
+/// [`dispatch_rx()`](crate::dispatch_rx()) this pool has some unique features:
 ///
 /// * A configurable, fixed number of threads created before return from
 ///   construction and terminated on `Drop::drop`.  Consistent memory
