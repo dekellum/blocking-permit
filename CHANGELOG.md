@@ -1,11 +1,13 @@
-## 1.3.0 (unreleased)
-* Update futures-intrusive to include 0.4, and parking_lot min to 0.10.0.
-
+## 1.3.0 (2021-1-8)
 * Update to bytes 1.0 and tokio 1.0.1 (MSRV 1.45.2)
+
+* Update futures-intrusive to include 0.4, and parking_lot min to 0.10.0.
 
 * Minimum supported rust version is now 1.45.2 (to match above dep updates).
 
 * Remove prior remove_dir_all transitive restriction based on MSRV.
+
+* Misc. documentation improvements.
 
 ## 1.2.1 (2020-8-29)
 * Extend num_cpus dependency to include 1.13.
