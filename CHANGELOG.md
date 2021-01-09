@@ -1,4 +1,4 @@
-## 1.3.0 (unreleased)
+## 1.3.0 (2021-1-8)
 * Update futures-intrusive to include 0.4, and parking_lot min to 0.10.0.
 
 * Update to bytes 1.0 and tokio 1.0.1 (MSRV 1.45.2)
