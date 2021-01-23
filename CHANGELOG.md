@@ -1,4 +1,4 @@
-## 1.3.1 (unreleased)
+## 1.3.1 (2021-1-23)
 * Broaden tokio dependency to include new 1.1.z releases.
 
 * Add previously missing LICENSE-(APACHE/MIT) files to repo and package.
