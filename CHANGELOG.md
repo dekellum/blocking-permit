@@ -1,4 +1,11 @@
 ## 1.3.1 (unreleased)
+* Broaden tokio dependency to include new 1.1.z releases.
+
+* Add previously missing LICENSE-(APACHE/MIT) files to repo and package.
+
+* Update dev. dependencies rand (to 0.8.0) and broaden tempfile (incl. 3.2).
+
+* Add clippy config for primordial MSRV build.rs and for current MSRV.
 
 ## 1.3.0 (2021-1-8)
 * Update to bytes 1.0 and tokio 1.0.1 (MSRV 1.45.2)
