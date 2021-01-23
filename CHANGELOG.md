@@ -1,3 +1,5 @@
+## 1.3.1 (unreleased)
+
 ## 1.3.0 (2021-1-8)
 * Update to bytes 1.0 and tokio 1.0.1 (MSRV 1.45.2)
 
