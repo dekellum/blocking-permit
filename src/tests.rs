@@ -30,10 +30,10 @@ use lazy_static::lazy_static;
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
 use futures_util::stream::FuturesUnordered;
 
-use log::debug;
+use tao_log::debug;
 
 #[cfg(any(feature = "tokio-semaphore", feature = "futures-intrusive"))]
-use log::info;
+use tao_log::info;
 
 use crate::*;
 

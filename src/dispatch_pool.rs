@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use log::{error, trace};
+use tao_log::{error, trace};
 use parking_lot::{Condvar, Mutex};
 
 /// A specialized thread pool and queue for dispatching _blocking_
@@ -181,7 +181,7 @@ struct AbortOnPanic;
 impl Drop for AbortOnPanic {
     fn drop(&mut self) {
         error!("DispatchPool: aborting due to panic on dispatch thread");
-        log::logger().flush();
+        tao_log::log::logger().flush();
         std::process::abort();
     }
 }

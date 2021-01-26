@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use log::debug;
+use tao_log::debug;
 
 use tokio::sync::{SemaphorePermit, AcquireError};
 
