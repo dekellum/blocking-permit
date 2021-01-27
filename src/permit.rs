@@ -1,4 +1,4 @@
-use log::{warn, trace};
+use tao_log::{warn, trace};
 
 #[cfg(feature = "tokio-semaphore")]
 mod tokio_semaphore;

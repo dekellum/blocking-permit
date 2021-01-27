@@ -23,11 +23,11 @@ dependencies = [
  "futures-intrusive",
  "futures-util",
  "lazy_static",
- "log",
  "num_cpus",
  "parking_lot",
  "piccolog",
  "rand",
+ "tao-log",
  "tempfile",
  "tokio",
 ]
@@ -372,6 +372,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "tao-log"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bdb72c7ebb54f826563d87ed7ccdcc122f4738069b098cc0e44b260180479d0"
+dependencies = [
+ "log",
 ]
 
 [[package]]
