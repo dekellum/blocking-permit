@@ -1,3 +1,6 @@
+## 1.3.2 (2021-1-27)
+* Use tao-log dependency exclusively, no direct log dep.
+
 ## 1.3.1 (2021-1-23)
 * Broaden tokio dependency to include new 1.1.z releases.
 
