@@ -421,8 +421,7 @@ impl DispatchPoolBuilder {
         self
     }
 
-    /// Create a new [`DispatchPool`] with the provided
-    /// configuration.
+    /// Create a new [`DispatchPool`] with the provided configuration.
     pub fn create(&mut self) -> DispatchPool {
 
         let pool_size = if let Some(0) = self.queue_length {
