@@ -1,5 +1,5 @@
-## 1.3.3 (unreleased)
-* Broaden tokio dependency to include releases through 1.12.
+## 1.3.3 (2021-10-28)
+* Broaden tokio dependency to include 1.2-1.12 releases.
 
 * Broaden _bytes_ dependency to include 1.1.
 
