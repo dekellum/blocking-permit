@@ -1,9 +1,9 @@
 # blocking-permit
 
 [![Rustdoc](https://docs.rs/blocking-permit/badge.svg)](https://docs.rs/blocking-permit)
-[![Change Log](https://img.shields.io/crates/v/blocking-permit.svg?maxAge=3600&label=change%20log&color=9cf)](https://github.com/dekellum/blocking-permit/blob/master/CHANGELOG.md)
+[![Change Log](https://img.shields.io/crates/v/blocking-permit.svg?maxAge=3600&label=change%20log&color=9cf)](https://github.com/dekellum/blocking-permit/blob/main/CHANGELOG.md)
 [![crates.io](https://img.shields.io/crates/v/blocking-permit.svg?maxAge=3600)](https://crates.io/crates/blocking-permit)
-[![CI Status](https://github.com/dekellum/blocking-permit/workflows/CI/badge.svg?branch=master)](https://github.com/dekellum/blocking-permit/actions?query=workflow%3ACI)
+[![CI Status](https://github.com/dekellum/blocking-permit/workflows/CI/badge.svg?branch=main)](https://github.com/dekellum/blocking-permit/actions?query=workflow%3ACI)
 
 This crate provides:
 
