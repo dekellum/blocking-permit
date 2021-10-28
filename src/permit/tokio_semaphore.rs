@@ -22,6 +22,7 @@ use crate::{Canceled, Semaphorish};
 #[must_use = "must call `run` or `enter` before blocking"]
 #[derive(Debug)]
 pub struct BlockingPermit<'a> {
+    #[allow(unused)]
     permit: SemaphorePermit<'a>,
     pub(crate) entered: Cell<bool>
 }
