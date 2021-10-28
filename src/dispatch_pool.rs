@@ -253,12 +253,8 @@ impl Sender {
     // always return the work given.
     fn send(&self, work: Work) -> Option<Work> {
         let mut queue = self.ws.queue.lock();
-        let exempt = match work {
-            Work::Terminate => true,
-            _ => false
-        };
         let qlen = queue.len();
-        if exempt || qlen < self.ws.limit {
+        if matches!(work, Work::Terminate) || qlen < self.ws.limit {
             queue.push_back(work);
             self.ws.condvar.notify_one();
             None
