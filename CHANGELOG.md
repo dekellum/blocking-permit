@@ -1,6 +1,8 @@
 ## 1.3.3 (unreleased)
 * Broaden tokio dependency to include releases through 1.12.
 
+* Broaden _bytes_ dependency to include 1.1.
+
 ## 1.3.2 (2021-1-27)
 * Use tao-log dependency exclusively, no direct log dep.
 
